@@ -3,313 +3,262 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Danh bạ ứng cứu vùng ngập miền Trung — realtime</title>
+<title>Danh bạ ứng cứu vùng ngập - realtime</title>
 <style>
-  :root{font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
-  body{margin:0;padding:16px;background:#f6f8fa;color:#0b1320}
+  :root{font-family:system-ui,Segoe UI,Roboto,Arial;--blue:#0b74de;--muted:#64748b}
+  body{margin:0;padding:18px;background:#f6f8fa;color:#0b1320}
   header{display:flex;flex-direction:column;gap:6px}
   h1{margin:0;font-size:20px}
-  .muted{color:#64748b;font-size:13px}
+  .muted{color:var(--muted);font-size:13px}
   .controls{display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap}
   input,select,button{padding:8px;border-radius:8px;border:1px solid #d6dbe0;background:white}
   table{width:100%;border-collapse:collapse;margin-top:8px;background:white;box-shadow:0 2px 6px rgba(12,20,30,0.06)}
   th,td{padding:8px;border:1px solid #eef2f5;text-align:left;vertical-align:top}
-  th{background:#0b74de;color:#fff}
+  th{background:var(--blue);color:#fff}
   .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:600}
   .safe{background:#e6ffed;color:#0a6f2b}
   .warning{background:#fff7e6;color:#7a5b00}
   .flood{background:#ffeef0;color:#8b1d2b}
-  .call-btn{background:#0b74de;color:white;border:none;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .call-btn{background:var(--blue);color:white;border:none;padding:6px 8px;border-radius:6px;cursor:pointer}
   .small{font-size:13px;color:#475569}
+  .sheet-title{font-weight:700;padding:6px 0}
   @media(max-width:720px){th,td{font-size:13px}}
 </style>
 </head>
 <body>
   <header>
-    <h1>Danh bạ ứng cứu vùng ngập miền Trung</h1>
-    <div class="muted">Nguồn dữ liệu: Google Sheet (publish). Hiện trạng ngập: Open-Meteo Flood API. Tự cập nhật mỗi 60 phút.</div>
+    <h1>Danh bạ ứng cứu vùng ngập (Realtime)</h1>
+    <div class="muted">Nguồn: Google Sheet (Apps Script) • Hiện trạng ngập: Open-Meteo Flood API • Tự cập nhật mỗi 60 phút</div>
   </header>
 
   <div class="controls">
-    <input id="q" placeholder="Tìm: xã, chức vụ, tên, số điện thoại..." style="flex:1"/>
+    <input id="q" placeholder="Tìm: xã, tên, chức vụ, số điện thoại..." style="flex:1"/>
     <select id="provFilter"><option value="">-- Lọc tỉnh --</option></select>
     <select id="statusFilter"><option value="">-- Hiện trạng --</option><option value="flood">Ngập</option><option value="warning">Cảnh báo</option><option value="safe">Bình thường</option></select>
     <button id="refresh">Lấy ngay</button>
   </div>
 
-  <div id="info" class="muted">Chưa cập nhật.</div>
+  <div id="info" class="muted">Chưa cập nhật</div>
   <div id="results"></div>
 
 <script>
-/* ---------- CẤU HÌNH: đặt link publish của Google Sheet ở đây ---------- */
-/* Bạn đã publish sheet — dùng link pubhtml bạn cung cấp */
-const SHEET_PUBHTML = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSvwTM7BpXQRjKDIj6awjy0up2syCP1jwc9VqwE6MqKn53tQQOwqDNrhMlly5Xk8BXXuKBNU1_6XX2c/pubhtml";
-
-/* Open-Meteo Flood API helper */
-function floodApiUrl(lat, lon){
-  return `https://flood-api.open-meteo.com/v1/discharge?latitude=${lat}&longitude=${lon}&hourly=discharge`;
-}
-
-/* Nominatim geocode */
-async function geocode(text){
-  const key = 'geo_cache_' + text;
-  const cached = localStorage.getItem(key);
-  if(cached) return JSON.parse(cached);
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(text);
-  try{
-    const r = await fetch(url, {headers:{'Accept':'application/json'}});
-    const j = await r.json();
-    if(j && j.length){
-      const res = {lat: parseFloat(j[0].lat), lon: parseFloat(j[0].lon), display_name: j[0].display_name};
-      localStorage.setItem(key, JSON.stringify(res));
-      return res;
-    }
-  }catch(e){ console.warn('geocode err',e); }
-  return null;
-}
-
-/* parse pubhtml: fetch and extract first <table> element rows */
-async function fetchPublishedSheet(url){
-  const r = await fetch(url);
-  const html = await r.text();
-  // parse HTML
-  const dp = new DOMParser();
-  const doc = dp.parseFromString(html, 'text/html');
-  const table = doc.querySelector('table');
-  if(!table) throw new Error('Không tìm thấy bảng trong sheet publish.');
-  // extract rows
-  const rows = [];
-  table.querySelectorAll('tr').forEach(tr=>{
-    const cells = [];
-    tr.querySelectorAll('th,td').forEach(td=>{
-      cells.push(td.textContent.trim());
-    });
-    if(cells.length) rows.push(cells);
-  });
-  return rows; // array of arrays
-}
-
-/* helpers */
-function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-function normalizePhone(s){ return String(s||'').replace(/[^+0-9]/g,''); }
-function sleep(ms){ return new Promise(res=>setTimeout(res,ms)); }
-
-/* thresholds defaults (m3/s) - can be overridden per-row if sheet has flood_threshold/warning_threshold columns */
+/* ====== CẤU HÌNH: chỉ sửa khi cần ====== */
+const SHEET_API = "https://script.google.com/macros/s/AKfycbyZBQOVz0xyOW-XEg1ft7z3cIsGWD44tfZ09U8zlm_a7G1H3T2TT96dgW2i9Y5uq_Nh/exec";
 const DEFAULTS = { flood:1500, warning:800 };
-
-/* main pipeline */
-let RAW_ROWS = [];
-let DISPLAY = [];
+const CALL_DELAY = 650;
+const REFRESH_INTERVAL = 60 * 60 * 1000;
+/* ====================================== */
 
 const infoEl = document.getElementById('info');
 const results = document.getElementById('results');
 const q = document.getElementById('q');
 const provFilter = document.getElementById('provFilter');
 const statusFilter = document.getElementById('statusFilter');
-document.getElementById('refresh').addEventListener('click', ()=> fetchAndProcess(true));
+document.getElementById('refresh').addEventListener('click', ()=> fetchAndRender(true));
 q.addEventListener('input', ()=> renderFiltered());
 provFilter.addEventListener('change', ()=> renderFiltered());
 statusFilter.addEventListener('change', ()=> renderFiltered());
 
-async function fetchAndProcess(force=false){
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function normalizePhone(s){ return String(s||'').replace(/[^+0-9]/g,''); }
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+async function geocode(text){
+  if(!text) return null;
+  const key = 'geo_' + text;
+  const cached = localStorage.getItem(key);
+  if(cached) return JSON.parse(cached);
   try{
-    infoEl.textContent = 'Đang tải dữ liệu từ Google Sheet...';
-    const rows = await fetchPublishedSheet(SHEET_PUBHTML);
-    if(rows.length < 2) { infoEl.textContent = 'Sheet rỗng hoặc không đúng định dạng.'; return; }
-    // assume first row is header
-    const header = rows[0].map(h=>h.trim().toLowerCase().replace(/\s+/g,'_'));
-    const data = [];
-    for(let i=1;i<rows.length;i++){
-      const arr = rows[i];
-      const obj = {};
-      for(let j=0;j<header.length;j++){
-        obj[header[j]] = arr[j] !== undefined ? arr[j] : '';
-      }
-      data.push(obj);
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(text);
+    const r = await fetch(url, {headers:{'Accept':'application/json'}});
+    const j = await r.json();
+    if(j && j.length){
+      const out = { lat: parseFloat(j[0].lat), lon: parseFloat(j[0].lon), display: j[0].display_name };
+      localStorage.setItem(key, JSON.stringify(out));
+      return out;
     }
-    RAW_ROWS = data;
-    infoEl.textContent = `Đã tải ${RAW_ROWS.length} dòng. Bắt đầu geocode & lấy dữ liệu ngập...`;
-    // enrich geo (if missing) and flood data
-    const geoEnriched = [];
-    for(let i=0;i<RAW_ROWS.length;i++){
-      const r = RAW_ROWS[i];
-      const out = Object.assign({}, r);
-      // derive province/district/commune field names heuristically
-      // common keys: province/province_current, district, commune_current, lat/lon
-      const latKeys = ['lat','latitude','toado_lat','toạ_độ_lat'];
-      const lonKeys = ['lon','longitude','toado_lon','toạ_độ_lon'];
-      let lat = null, lon = null;
-      for(const k of latKeys) if(out[k]) { lat=out[k]; break; }
-      for(const k of lonKeys) if(out[k]) { lon=out[k]; break; }
-      if(!lat || !lon){
-        // build query from commune + district + province
-        const nameParts = [];
-        if(out.commune_current) nameParts.push(out.commune_current);
-        if(out.commune) nameParts.push(out.commune);
-        if(out.district) nameParts.push(out.district);
-        if(out.province_current) nameParts.push(out.province_current);
-        if(out.province) nameParts.push(out.province);
-        const qtext = nameParts.filter(Boolean).join(', ');
-        if(qtext){
-          // be polite: wait to avoid hammering nominatim
-          await sleep(600);
-          const g = await geocode(qtext);
-          if(g){ out.lat = g.lat; out.lon = g.lon; out._geocoded_from = g.display_name; }
-        }
-      } else {
-        out.lat = parseFloat(lat);
-        out.lon = parseFloat(lon);
-      }
-      geoEnriched.push(out);
-    }
-    infoEl.textContent = 'Geocode hoàn tất — bắt đầu gọi Flood API (lưu ý: có thể mất 1-2 phút)...';
-    const floodEnriched = [];
-    for(let i=0;i<geoEnriched.length;i++){
-      const r = geoEnriched[i];
-      const cp = Object.assign({}, r);
-      cp._status = 'unknown';
-      cp._detail = '';
-      if(cp.lat && cp.lon){
-        try{
-          // polite pacing
-          await sleep(650);
-          const url = floodApiUrl(cp.lat, cp.lon);
-          const resp = await fetch(url);
-          if(resp.ok){
-            const j = await resp.json();
-            let discharge = null;
-            if(j && j.hourly && Array.isArray(j.hourly.discharge) && j.hourly.discharge.length){
-              discharge = j.hourly.discharge[j.hourly.discharge.length - 1];
-              cp._raw_discharge = discharge;
-            }
-            // thresholds: allow per-row override (flood_threshold/warning_threshold columns)
-            const flood_thr = cp.flood_threshold ? parseFloat(cp.flood_threshold) : DEFAULTS.flood;
-            const warn_thr = cp.warning_threshold ? parseFloat(cp.warning_threshold) : DEFAULTS.warning;
-            if(discharge !== null){
-              if(discharge > flood_thr){ cp._status = 'flood'; cp._detail = `Discharge ${discharge} m³/s vượt ngưỡng ${flood_thr} → Ngập`; }
-              else if(discharge >= warn_thr){ cp._status = 'warning'; cp._detail = `Discharge ${discharge} m³/s (cảnh báo)`; }
-              else { cp._status = 'safe'; cp._detail = `Discharge ${discharge} m³/s — bình thường`; }
-            } else {
-              cp._status = 'unknown'; cp._detail = 'Không có dữ liệu discharge';
-            }
-          } else {
-            cp._status = 'unknown'; cp._detail = 'Lỗi khi gọi flood API';
-          }
-        }catch(e){
-          cp._status='unknown'; cp._detail='Lỗi khi gọi flood API';
-          console.warn('flood err', e);
-        }
-      } else {
-        cp._status='unknown'; cp._detail='Thiếu toạ độ (lat/lon)';
-      }
-      floodEnriched.push(cp);
-    }
-    DISPLAY = floodEnriched;
-    infoEl.textContent = 'Cập nhật bảng xong lúc ' + new Date().toLocaleString();
-    renderFiltered();
-  }catch(err){
-    console.error(err);
-    infoEl.textContent = 'Lỗi: ' + err.message;
-  }
+  }catch(e){ console.warn('geocode error', e); }
+  return null;
 }
 
-/* render with filters */
+function floodApiUrl(lat, lon){ return `https://flood-api.open-meteo.com/v1/discharge?latitude=${lat}&longitude=${lon}&hourly=discharge`; }
+
+async function fetchSheetApi(){
+  infoEl.textContent = 'Đang tải dữ liệu từ Google Sheet...';
+  const r = await fetch(SHEET_API);
+  if(!r.ok) throw new Error('Không thể gọi Google Script API: ' + r.status);
+  const j = await r.json();
+  return j;
+}
+
+/* Chuẩn hoá một sheet (mảng đối tượng) -> danh sách bản ghi chuẩn */
+function normalizeSheetRows(rowsArray){
+  const out = [];
+  let currentCommune = null;
+  let currentTruocSapNhap = '';
+  for(const row of rowsArray){
+    const values = Object.values(row).map(v => (v||'').toString().trim());
+    const joined = values.join(' | ');
+    if(joined.toLowerCase().includes('hợp nhất') || joined.toLowerCase().includes('hop nhat') ){
+      // pattern "Phường X (Hợp nhất từ ...)"
+      const m = joined.match(/^(.+?)\s*\((.*?hợp nhất.*)\)/i);
+      if(m){
+        currentCommune = m[1].trim();
+        const inside = m[2].trim();
+        const ins2 = inside.match(/hợp\s*nhất(?:\s*từ)?\s*[:\-]?\s*(.+)$/i);
+        currentTruocSapNhap = ins2 ? ins2[1].trim() : inside;
+      } else {
+        // fallback: first non-empty value as commune, rest as note
+        currentCommune = values.find(v=>v && !/họ và tên|chức vụ|số điện thoại/i.test(v)) || null;
+        currentTruocSapNhap = joined;
+      }
+      continue;
+    }
+    const headerRow = values.some(v=>/họ và tên|chức vụ|số điện thoại|họ tên/i.test(v));
+    if(headerRow) continue;
+    const phoneCellIndex = values.findIndex(v=>/\d{7,}/.test(v.replace(/[\s\.\-]/g,'')));
+    const nameCellIndex = values.findIndex((v,i)=> i!==phoneCellIndex && v && v.length>2 && !/phường|xã|hợp nhất|chức vụ|họ và tên/i.test(v));
+    const obj = {
+      province: row['Tỉnh'] || row['tỉnh'] || row['Province'] || '',
+      district: row['Huyện'] || row['huyện'] || row['District'] || '',
+      commune: currentCommune || (row['Xã/Phường']||row['xã/phường']||row['Commune']||''),
+      name: row['Họ và tên'] || row['Họ tên'] || row['họ và tên'] || values[nameCellIndex] || '',
+      role: row['Chức vụ'] || row['chức vụ'] || row['Role'] || '',
+      phone: row['Số điện thoại'] || row['số điện thoại'] || row['Phone'] || (phoneCellIndex>=0?values[phoneCellIndex]:''),
+      truoc_sap_nhap: currentTruocSapNhap || row['Trước sáp nhập'] || row['trước sáp nhập'] || row['Ghi chú'] || ''
+    };
+    if(!obj.commune){
+      const vcomm = values.find(v=> /phường|xã|thị trấn/i.test(v));
+      if(vcomm) obj.commune = vcomm;
+    }
+    if(obj.name || obj.phone) out.push(obj);
+  }
+  return out;
+}
+
+async function enrichRows(rows){
+  const enriched = [];
+  for(let i=0;i<rows.length;i++){
+    const r = Object.assign({}, rows[i]);
+    r._status = 'unknown';
+    r._detail = '';
+    const commune = r.commune || '';
+    const district = r.district || '';
+    const province = r.province || '';
+    if(r.lat && r.lon){
+      r._lat = parseFloat(r.lat); r._lon = parseFloat(r.lon);
+    } else {
+      const q = [commune, district, province].filter(Boolean).join(', ');
+      if(q){
+        await sleep(CALL_DELAY);
+        const g = await geocode(q);
+        if(g){ r._lat = g.lat; r._lon = g.lon; r._geo_from = g.display; }
+      }
+    }
+    if(r._lat && r._lon){
+      try{
+        await sleep(CALL_DELAY);
+        const url = floodApiUrl(r._lat, r._lon);
+        const res = await fetch(url);
+        if(res.ok){
+          const j = await res.json();
+          let discharge = null;
+          if(j && j.hourly && Array.isArray(j.hourly.discharge) && j.hourly.discharge.length){
+            discharge = j.hourly.discharge[j.hourly.discharge.length - 1];
+            r._raw_discharge = discharge;
+          }
+          const flood_thr = r.flood_threshold ? parseFloat(r.flood_threshold) : DEFAULTS.flood;
+          const warn_thr = r.warning_threshold ? parseFloat(r.warning_threshold) : DEFAULTS.warning;
+          if(discharge !== null){
+            if(discharge > flood_thr){ r._status='flood'; r._detail = `Discharge ${discharge} m³/s > ${flood_thr}`; }
+            else if(discharge >= warn_thr){ r._status='warning'; r._detail = `Discharge ${discharge} m³/s`; }
+            else { r._status='safe'; r._detail = `Discharge ${discharge} m³/s (bình thường)`; }
+          } else {
+            r._status='unknown'; r._detail='Không có dữ liệu discharge';
+          }
+        } else {
+          r._status='unknown'; r._detail='Lỗi flood API';
+        }
+      }catch(e){ r._status='unknown'; r._detail='Lỗi gọi flood API'; console.warn(e); }
+    } else {
+      r._status='unknown'; r._detail='Thiếu toạ độ';
+    }
+    enriched.push(r);
+  }
+  return enriched;
+}
+
+let DISPLAY = [];
 function renderFiltered(){
   const term = q.value.trim().toLowerCase();
   const prov = provFilter.value;
   const status = statusFilter.value;
-  const list = DISPLAY.filter(d=>{
-    if(prov && ((d.province_current||d.province||'').trim() !== prov)) return false;
+  const rows = DISPLAY.filter(d=>{
+    if(prov && ((d.province||'').trim() !== prov)) return false;
     if(status && (d._status||'') !== status) return false;
     if(!term) return true;
-    const hay = [d.commune_current,d.commune,d.district,d.province_current,d.province,d.office,d.role,d.phone,d.note,d.tr_cu_sap_nhap,d._detail].join(' ').toLowerCase();
+    const hay = [d.commune,d.name,d.role,d.phone,d.truoc_sap_nhap,d._detail].join(' ').toLowerCase();
     return hay.indexOf(term) !== -1;
   });
-  renderTable(list);
+  buildTable(rows);
 }
 
-/* render table and populate province filter */
-function renderTable(rows){
-  // populate province filter
-  const provs = Array.from(new Set(DISPLAY.map(d=> (d.province_current||d.province||'').trim()).filter(Boolean))).sort();
+function buildTable(rows){
+  const provs = Array.from(new Set(DISPLAY.map(d=> (d.province||'').trim()).filter(Boolean))).sort();
   provFilter.innerHTML = '<option value="">-- Lọc tỉnh --</option>';
   provs.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p; provFilter.appendChild(o); });
 
-  // build table
-  const container = results;
-  container.innerHTML = '';
-  if(!rows.length){ container.innerHTML = '<div class="muted">Không tìm thấy kết quả.</div>'; return; }
+  results.innerHTML = '';
+  if(!rows.length){ results.innerHTML = '<div class="muted">Không có kết quả</div>'; return; }
+
   const tbl = document.createElement('table');
   const thead = document.createElement('thead');
-  thead.innerHTML = '<tr><th>TT</th><th>Xã/Phường (Huyện, Tỉnh)</th><th>Đơn vị / Chức vụ</th><th>SĐT</th><th>Trước sáp nhập</th><th>Hiện trạng</th><th>Chi tiết ngập</th></tr>';
+  thead.innerHTML = '<tr><th>TT</th><th>Xã/Phường (Huyện, Tỉnh)</th><th>Họ & tên / Chức vụ</th><th>SĐT</th><th>Trước sáp nhập</th><th>Hiện trạng</th><th>Chi tiết</th></tr>';
   tbl.appendChild(thead);
   const tbody = document.createElement('tbody');
   rows.forEach((it,i)=>{
     const tr = document.createElement('tr');
-    let cls = '';
-    if(it._status === 'flood') cls = 'flood';
-    else if(it._status === 'warning') cls = 'warning';
-    else if(it._status === 'safe') cls = 'safe';
+    let cls=''; if(it._status==='flood') cls='flood'; else if(it._status==='warning') cls='warning'; else if(it._status==='safe') cls='safe';
     tr.innerHTML = `
       <td>${i+1}</td>
-      <td>${escapeHtml(it.commune_current||it.commune||'')}<div class="small">${escapeHtml(it.district||'')}, ${escapeHtml(it.province_current||it.province||'')}</div></td>
-      <td><strong>${escapeHtml(it.office||'')}</strong><div class="small">${escapeHtml(it.role||'')}</div></td>
-      <td><a href="tel:${normalizePhone(it.phone)}" class="call-btn">Gọi</a> ${escapeHtml(it.phone||'')}</td>
-      <td>${escapeHtml(it.tr_cu_sap_nhap||'')}</td>
+      <td>${escapeHtml(it.commune||'')}<div class="small">${escapeHtml(it.district||'')}, ${escapeHtml(it.province||'')}</div></td>
+      <td><strong>${escapeHtml(it.name||'')}</strong><div class="small">${escapeHtml(it.role||'')}</div></td>
+      <td><a class="call-btn" href="tel:${normalizePhone(it.phone||'')}">Gọi</a> ${escapeHtml(it.phone||'')}</td>
+      <td>${escapeHtml(it.truoc_sap_nhap||'')}</td>
       <td><span class="badge ${cls}">${escapeHtml(it._status||'unknown')}</span></td>
       <td>${escapeHtml(it._detail||'')}</td>
     `;
     tbody.appendChild(tr);
   });
   tbl.appendChild(tbody);
-  container.appendChild(tbl);
+  results.appendChild(tbl);
 }
 
-/* initial run */
-fetchAndProcess();
-/* auto refresh each 60 minutes */
-setInterval(()=>{ fetchAndProcess(true); }, 60*60*1000);
+async function fetchAndRender(force=false){
+  try{
+    infoEl.textContent = 'Bắt đầu cập nhật...';
+    const all = await fetchSheetApi();
+    let collected = [];
+    for(const sheetName of Object.keys(all)){
+      const rawRows = all[sheetName];
+      const normalized = normalizeSheetRows(rawRows);
+      normalized.forEach(r=> { if(!r.province) r.province = sheetName; });
+      collected = collected.concat(normalized);
+    }
+    infoEl.textContent = `Chuẩn hoá dữ liệu ${collected.length} bản ghi. Bắt đầu geocode & lấy flood...`;
+    const enriched = await enrichRows(collected);
+    DISPLAY = enriched;
+    infoEl.textContent = 'Hoàn tất cập nhật lúc ' + new Date().toLocaleString();
+    renderFiltered();
+  }catch(e){
+    console.error(e);
+    infoEl.textContent = 'Lỗi quá trình cập nhật: ' + (e.message||e);
+  }
+}
+
+fetchAndRender();
+setInterval(()=> fetchAndRender(true), REFRESH_INTERVAL);
 </script>
 </body>
 </html>
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Danh bạ cứu trợ thông minh</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <h1>Danh bạ cứu trợ thông minh</h1>
-  <p>Tra cứu nhanh thông tin liên hệ các cấp chính quyền tại khu vực bị ảnh hưởng mưa lũ</p>
-
-  <div class="filters">
-    <select id="provinceFilter">
-      <option value="">-- Chọn tỉnh/thành --</option>
-    </select>
-    <input type="text" id="searchBox" placeholder="Tìm kiếm theo tên, xã, số điện thoại..." />
-  </div>
-
-  <table id="dataTable">
-    <thead>
-      <tr>
-        <th>Tỉnh/TP</th>
-        <th>Xã/Phường</th>
-        <th>Họ và tên</th>
-        <th>Chức vụ</th>
-        <th>Số điện thoại</th>
-        <th>Trước sáp nhập</th>
-        <th>Tình trạng</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <footer>
-    <p>Cập nhật dữ liệu mỗi giờ từ Google Sheet và nguồn ngập lụt quốc gia</p>
-  </footer>
-
-  <script src="script.js"></script>
-</body>
-</html>
+Cập nhật giao diện realtime và API ngập lụt
