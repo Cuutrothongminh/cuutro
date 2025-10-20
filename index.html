@@ -8,11 +8,14 @@
 </head>
 <body>
   <h1>Danh bạ cứu trợ thông minh</h1>
-  <p>Thông tin cán bộ và hiện trạng ngập được cập nhật tự động</p>
+  <p>Tra cứu nhanh thông tin liên hệ các cấp chính quyền tại khu vực bị ảnh hưởng mưa lũ</p>
 
-  <select id="provinceFilter">
-    <option value="">-- Chọn tỉnh/thành --</option>
-  </select>
+  <div class="filters">
+    <select id="provinceFilter">
+      <option value="">-- Chọn tỉnh/thành --</option>
+    </select>
+    <input type="text" id="searchBox" placeholder="Tìm kiếm theo tên, xã, số điện thoại..." />
+  </div>
 
   <table id="dataTable">
     <thead>
@@ -29,7 +32,10 @@
     <tbody></tbody>
   </table>
 
-  <script src="data.js"></script>
+  <footer>
+    <p>Cập nhật dữ liệu mỗi giờ từ Google Sheet và nguồn ngập lụt quốc gia</p>
+  </footer>
+
   <script src="script.js"></script>
 </body>
 </html>
