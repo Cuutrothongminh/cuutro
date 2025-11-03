@@ -26,6 +26,32 @@
       color: #444;
       margin: 10px 0;
     }
+    .search-box {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .search-box input {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      width: 260px;
+      font-size: 1em;
+    }
+    .search-box button {
+      padding: 8px 14px;
+      background: #0078d7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    .search-box button:hover {
+      background: #005fa3;
+    }
     table {
       border-collapse: collapse;
       width: 95%;
@@ -56,6 +82,12 @@
   <header>🌊 BẢNG CỨU TRỢ THÔNG MINH – TỰ CẬP NHẬT MỖI 15 PHÚT</header>
   <div id="update-status">Đang tải dữ liệu...</div>
 
+  <!-- 🔍 Ô tìm kiếm -->
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Nhập tên Tỉnh, Xã hoặc Huyện để tìm..." />
+    <button onclick="filterTable()">🔍 Tìm nhanh</button>
+  </div>
+
   <table>
     <thead>
       <tr>
@@ -75,4 +107,3 @@
   <script src="script.js"></script>
 </body>
 </html>
-<!-- update 3/11 -->
