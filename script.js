@@ -1,109 +1,53 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bản đồ Cứu trợ thông minh 🌊</title>
-  <link rel="icon" href="icon.png">
-  <style>
-    body {
-      font-family: "Segoe UI", Roboto, sans-serif;
-      background: #f3f7fb;
-      margin: 0;
-      padding: 0;
-    }
-    header {
-      background: #0078d7;
-      color: white;
-      text-align: center;
-      padding: 12px;
-      font-size: 1.3em;
-      font-weight: 600;
-    }
-    #update-status {
-      text-align: center;
-      font-size: 0.9em;
-      color: #444;
-      margin: 10px 0;
-    }
-    .search-box {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-    .search-box input {
-      padding: 8px 12px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      width: 260px;
-      font-size: 1em;
-    }
-    .search-box button {
-      padding: 8px 14px;
-      background: #0078d7;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 1em;
-    }
-    .search-box button:hover {
-      background: #005fa3;
-    }
-    table {
-      border-collapse: collapse;
-      width: 95%;
-      margin: 10px auto;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px 10px;
-      text-align: left;
-      font-size: 0.95em;
-    }
-    th {
-      background: #e6f2ff;
-      font-weight: bold;
-    }
-    tr:nth-child(even) {
-      background: #f9f9f9;
-    }
-    .status-safe { color: green; font-weight: bold; }
-    .status-warning { color: orange; font-weight: bold; }
-    .status-flood { color: red; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <header>🌊 BẢNG CỨU TRỢ THÔNG MINH – TỰ CẬP NHẬT MỖI 15 PHÚT</header>
-  <div id="update-status">Đang tải dữ liệu...</div>
+const sheetUrl = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/gviz/tq?gid=325047141";
+const updateStatus = document.getElementById("update-status");
+const tableBody = document.querySelector("#dataTable tbody");
+const searchInput = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
 
-  <!-- 🔍 Ô tìm kiếm -->
-  <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Nhập tên Tỉnh, Xã hoặc Huyện để tìm..." />
-    <button onclick="filterTable()">🔍 Tìm nhanh</button>
-  </div>
+async function fetchSheetData() {
+  updateStatus.textContent = "⏳ Đang tải dữ liệu...";
+  try {
+    const res = await fetch(sheetUrl);
+    const text = await res.text();
 
-  <table>
-    <thead>
-      <tr>
-        <th>Tỉnh/TP</th>
-        <th>Xã/Phường</th>
-        <th>Họ và tên</th>
-        <th>Chức vụ</th>
-        <th>Số điện thoại</th>
-        <th>Trước sáp nhập</th>
-        <th>Đặc điểm địa hình</th>
-        <th>Trạng thái ngập</th>
-      </tr>
-    </thead>
-    <tbody id="data-body"></tbody>
-  </table>
+    // Google Sheets trả về JS callback, cần tách JSON
+    const json = JSON.parse(text.substring(47, text.length - 2));
+    const rows = json.table.rows;
 
-  <script src="script.js"></script>
-</body>
-</html>
+    let html = "";
+    rows.forEach(r => {
+      const cells = r.c.map(c => (c ? c.v : ""));
+      html += `
+        <tr>
+          <td>${cells[0]}</td>
+          <td>${cells[1]}</td>
+          <td>${cells[2]}</td>
+          <td>${cells[3]}</td>
+          <td>${cells[4]}</td>
+          <td>${cells[5]}</td>
+          <td>${cells[6]}</td>
+          <td>${cells[7]}</td>
+        </tr>`;
+    });
+
+    tableBody.innerHTML = html;
+    updateStatus.textContent = `✅ Cập nhật lần cuối: ${new Date().toLocaleTimeString()}`;
+  } catch (error) {
+    console.error("Lỗi tải dữ liệu:", error);
+    updateStatus.textContent = "❌ Không tải được dữ liệu. Kiểm tra lại link hoặc quyền chia sẻ!";
+  }
+}
+
+// 🔎 Tìm kiếm nhanh
+searchBtn.addEventListener("click", () => {
+  const keyword = searchInput.value.trim().toLowerCase();
+  const rows = tableBody.querySelectorAll("tr");
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = text.includes(keyword) ? "" : "none";
+  });
+});
+
+// ⏱ Cập nhật tự động mỗi 15 phút
+fetchSheetData();
+setInterval(fetchSheetData, 15 * 60 * 1000);
