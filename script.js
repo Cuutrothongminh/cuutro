@@ -10,8 +10,6 @@ const OPENWEATHER_API_KEY = "YOUR_OPENWEATHERMAP_API_KEY";
 // Cache geocoding + weather
 let geoCache = {};
 let weatherCache = {};
-
-// Load cache từ localStorage
 if (localStorage.getItem("geoCache")) geoCache = JSON.parse(localStorage.getItem("geoCache"));
 if (localStorage.getItem("weatherCache")) weatherCache = JSON.parse(localStorage.getItem("weatherCache"));
 
@@ -28,6 +26,7 @@ async function fetchData() {
 
     const headers = [
       "Tỉnh/TP",
+      "Huyện - Tỉnh cũ",
       "Xã/Phường",
       "Họ và tên",
       "Chức vụ",
@@ -82,7 +81,9 @@ async function getWeatherWithCache(province, commune, lat, lon) {
       `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`
     );
     const weatherData = await weatherRes.json();
-    const rain = weatherData.rain?.["1h"] || 0;
+    // Lấy mưa 1h hoặc 3h nếu có
+    const rain = weatherData.rain?.["1h"] ?? weatherData.rain?.["3h"] ?? 0;
+
     let status;
     if (rain > 50) status = "Ngập nặng";
     else if (rain > 30) status = "Ngập sâu";
@@ -102,14 +103,12 @@ async function getWeatherWithCache(province, commune, lat, lon) {
 async function updateWeatherStatus() {
   statusDiv.textContent = "🕓 Đang tải dữ liệu thời tiết...";
 
-  // Lấy danh sách Xã/Phường duy nhất
   const uniqueCommunes = {};
   globalData.forEach(r => {
     const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
     if (!uniqueCommunes[key]) uniqueCommunes[key] = r;
   });
 
-  // Parallel fetch weather
   const promises = Object.values(uniqueCommunes).map(async r => {
     const geo = await getLatLon(r["Tỉnh/TP"], r["Xã/Phường"]);
     if (geo) {
@@ -124,7 +123,6 @@ async function updateWeatherStatus() {
 
   await Promise.all(promises);
 
-  // Áp dụng dữ liệu weather cho tất cả liên hệ cùng Xã/Phường
   globalData.forEach(r => {
     const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
     const uniqueData = uniqueCommunes[key];
@@ -140,7 +138,7 @@ async function updateWeatherStatus() {
 function renderData(data) {
   dataBody.innerHTML = "";
   if (!data.length) {
-    dataBody.innerHTML = `<tr><td colspan="9" style="text-align:center;">Không có dữ liệu</td></tr>`;
+    dataBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">Không có dữ liệu</td></tr>`;
     return;
   }
 
@@ -155,6 +153,7 @@ function renderData(data) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${r["Tỉnh/TP"]}</td>
+      <td>${r["Huyện - Tỉnh cũ"]}</td>
       <td>${r["Xã/Phường"]}</td>
       <td>${r["Họ và tên"]}</td>
       <td>${r["Chức vụ"]}</td>
