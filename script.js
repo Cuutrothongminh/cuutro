@@ -100,4 +100,50 @@ function renderData(data) {
     return;
   }
 
-  data.forEach(r =>
+  data.forEach(r => {
+    const statusClass =
+      r["Trạng thái ngập"] === "Ngập nặng" || r["Trạng thái ngập"] === "Ngập sâu"
+        ? "status-flood"
+        : r["Trạng thái ngập"] === "Ngập nhẹ"
+        ? "status-warning"
+        : "status-safe";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r["Tỉnh/TP"]}</td>
+      <td>${r["Xã/Phường"]}</td>
+      <td>${r["Họ và tên"]}</td>
+      <td>${r["Chức vụ"]}</td>
+      <td>${r["SĐT"]}</td>
+      <td>${r["Trước sáp nhập"]}</td>
+      <td>${r["Đặc điểm địa hình"]}</td>
+      <td>${r["Rain"]}</td>
+      <td class="${statusClass}">${r["Trạng thái ngập"]}</td>
+    `;
+    dataBody.appendChild(tr);
+  });
+}
+
+// --- Tìm kiếm nhanh ---
+function searchData() {
+  const keyword = searchInput.value.trim().toLowerCase();
+  if (!keyword) {
+    renderData(globalData);
+    return;
+  }
+  const filtered = globalData.filter(
+    r => r["Tỉnh/TP"].toLowerCase() === keyword || r["Xã/Phường"].toLowerCase() === keyword
+  );
+  renderData(filtered);
+}
+
+searchBtn.onclick = searchData;
+searchInput.addEventListener("keypress", e => {
+  if (e.key === "Enter") searchData();
+});
+
+// --- Lần đầu tải ---
+fetchData();
+
+// --- Cập nhật tự động mỗi 15 phút ---
+setInterval(fetchData, 15 * 60 * 1000);
