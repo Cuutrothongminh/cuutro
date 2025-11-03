@@ -26,12 +26,12 @@ async function fetchData() {
 
     const headers = [
       "Tỉnh/TP",
-      "Huyện - Tỉnh cũ",
       "Xã/Phường",
       "Họ và tên",
       "Chức vụ",
       "SĐT",
       "Trước sáp nhập",
+      "Huyện - Tỉnh cũ",
       "Đặc điểm địa hình",
       "Trạng thái ngập",
     ];
@@ -81,7 +81,6 @@ async function getWeatherWithCache(province, commune, lat, lon) {
       `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`
     );
     const weatherData = await weatherRes.json();
-    // Lấy mưa 1h hoặc 3h nếu có
     const rain = weatherData.rain?.["1h"] ?? weatherData.rain?.["3h"] ?? 0;
 
     let status;
@@ -99,7 +98,7 @@ async function getWeatherWithCache(province, commune, lat, lon) {
   }
 }
 
-// --- Cập nhật trạng thái mưa/ngập (parallel) ---
+// --- Cập nhật trạng thái mưa/ngập ---
 async function updateWeatherStatus() {
   statusDiv.textContent = "🕓 Đang tải dữ liệu thời tiết...";
 
@@ -153,12 +152,12 @@ function renderData(data) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${r["Tỉnh/TP"]}</td>
-      <td>${r["Huyện - Tỉnh cũ"]}</td>
       <td>${r["Xã/Phường"]}</td>
       <td>${r["Họ và tên"]}</td>
       <td>${r["Chức vụ"]}</td>
       <td>${r["SĐT"]}</td>
       <td>${r["Trước sáp nhập"]}</td>
+      <td>${r["Huyện - Tỉnh cũ"]}</td>
       <td>${r["Đặc điểm địa hình"]}</td>
       <td>${r["Rain"]}</td>
       <td class="${statusClass}">${r["Trạng thái ngập"]}</td>
