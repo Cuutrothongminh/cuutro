@@ -1,126 +1,77 @@
-<script>
-  const sheetURL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLgppCAEl0RthK6-BToah4P-HMYJqGV1Bf86IySA7xW02iAIu-aB_e-XD1qQDcR4oeCKGRT1hZlCKRlfcMvi27EeJy0r0F6CwFifjghDd0WrYATzP1S6MxwTeIGcLxVq8v4uVeRsgQQEC0nv67R1jq3U7-SZSEgF6AdVdcLd2UB0-tb_zeIRUasP3ZZ8ifnTsKo1CTegLs4J75PGlprbfoDADSZ-k49z1I5XtbAtZrw049RQRQ8Vj6Dx39XTh4S2Gy1RXy0UoDEDa1vJBymE_83URjxU8w&lib=MNlCDEoLrZA_U2CivsAHrwTJOzZw8k3LO";
-
-  // Thay bằng endpoint ngập
-  const floodAPI = "https://api.open-meteo.com/v1/flood";
-
-  let allData = [];
-
-  async function fetchFlood(lat, lon) {
-    try {
-      const url = `${floodAPI}?latitude=${lat}&longitude=${lon}&daily=river_discharge`;
-      const res = await fetch(url);
-      const j = await res.json();
-      // Giả sử lấy giá trị river_discharge từ j.daily.river_discharge
-      if (j && j.daily && j.daily.river_discharge && j.daily.river_discharge.length) {
-        return j.daily.river_discharge[0];
-      }
-    } catch(e) {
-      console.warn("Lỗi flood API", lat, lon, e);
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bản đồ Cứu trợ thông minh 🌊</title>
+  <link rel="icon" href="icon.png">
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f3f7fb;
+      margin: 0;
+      padding: 0;
     }
-    return null;
-  }
-
-  async function loadData() {
-    try {
-      const res = await fetch(sheetURL);
-      allData = await res.json();
-      //   => Nếu cần gọi flood cho mỗi bản ghi:
-      for (let i=0; i<allData.length; i++) {
-        const r = allData[i];
-        if (r["Latitude"] && r["Longitude"]) {
-          // chờ mỗi 200ms để tránh quá tải
-          await new Promise(r => setTimeout(r, 200));
-          const val = await fetchFlood(r["Latitude"], r["Longitude"]);
-          r._flood = val;
-          if (val !== null) {
-            if (val > 1000) r._status = "Ngập";
-            else if (val > 500) r._status = "Cảnh báo";
-            else r._status = "Bình thường";
-          } else {
-            r._status = "Không có dữ liệu";
-          }
-        } else {
-          r._status = "Thiếu toạ độ";
-        }
-      }
-
-      renderTable(allData);
-      fillFilters(allData);
-    } catch (e) {
-      console.error("Lỗi tải dữ liệu:", e);
-      document.getElementById("data-body").innerHTML = "<tr><td colspan='9' align='center'>Lỗi tải dữ liệu!</td></tr>";
+    header {
+      background: #0078d7;
+      color: white;
+      text-align: center;
+      padding: 12px;
+      font-size: 1.3em;
+      font-weight: 600;
     }
-  }
-
-  function renderTable(data) {
-    const tbody = document.getElementById("data-body");
-    tbody.innerHTML = "";
-    if (!data.length) {
-      tbody.innerHTML = "<tr><td colspan='9' align='center'>Không có dữ liệu</td></tr>";
-      return;
+    #update-status {
+      text-align: center;
+      font-size: 0.9em;
+      color: #444;
+      margin: 10px 0;
     }
-    data.forEach(row => {
-      const sdt = row["SĐT"] ? `<button class='call-btn' onclick="window.location.href='tel:${row["SĐT"]}'">📞 Gọi</button> ${row["SĐT"]}` : "";
-      const status = row._status || "";
-      tbody.insertAdjacentHTML("beforeend", `
-        <tr>
-          <td>${row["Tỉnh/TP"]||""}</td>
-          <td>${row["Xã/Phường"]||""}</td>
-          <td>${row["Thôn/Xóm"]||""}</td>
-          <td>${row["Họ tên"]||""}</td>
-          <td>${row["Chức vụ"]||""}</td>
-          <td>${sdt}</td>
-          <td>${row["Trước sáp nhập"]||""}</td>
-          <td>${row["Đặc điểm địa hình"]||""}</td>
-          <td>${status}</td>
-        </tr>`);
-    });
-  }
+    table {
+      border-collapse: collapse;
+      width: 95%;
+      margin: 10px auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 0.95em;
+    }
+    th {
+      background: #e6f2ff;
+      font-weight: bold;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .status-safe { color: green; font-weight: bold; }
+    .status-warning { color: orange; font-weight: bold; }
+    .status-flood { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <header>🌊 BẢNG CỨU TRỢ THÔNG MINH – TỰ CẬP NHẬT MỖI 15 PHÚT</header>
+  <div id="update-status">Đang tải dữ liệu...</div>
 
-  function fillFilters(data) {
-    const tinhSelect = document.getElementById("filter-tinh");
-    const xaSelect = document.getElementById("filter-xa");
-    const tinhList = [...new Set(data.map(d=>d["Tỉnh/TP"]).filter(Boolean))];
-    tinhSelect.innerHTML = '<option value="">-- Chọn Tỉnh/Thành phố --</option>';
-    tinhList.sort().forEach(t => {
-      const opt = document.createElement("option"); opt.value = t; opt.textContent = t;
-      tinhSelect.appendChild(opt);
-    });
-    tinhSelect.addEventListener("change", () => {
-      const sel = tinhSelect.value;
-      const xaList = [...new Set(data.filter(d=>d["Tỉnh/TP"]===sel).map(d=>d["Xã/Phường"]))];
-      xaSelect.innerHTML = '<option value="">-- Chọn Xã/Phường --</option>';
-      xaList.sort().forEach(x => {
-        const opt = document.createElement("option"); opt.value = x; opt.textContent = x;
-        xaSelect.appendChild(opt);
-      });
-      filterData();
-    });
-    xaSelect.addEventListener("change", filterData);
-    document.getElementById("search").addEventListener("input", filterData);
-  }
+  <table>
+    <thead>
+      <tr>
+        <th>Tỉnh/TP</th>
+        <th>Xã/Phường</th>
+        <th>Họ và tên</th>
+        <th>Chức vụ</th>
+        <th>Số điện thoại</th>
+        <th>Trước sáp nhập</th>
+        <th>Đặc điểm địa hình</th>
+        <th>Trạng thái ngập</th>
+      </tr>
+    </thead>
+    <tbody id="data-body"></tbody>
+  </table>
 
-  function filterData() {
-    const tinh = document.getElementById("filter-tinh").value;
-    const xa = document.getElementById("filter-xa").value;
-    const search = document.getElementById("search").value.toLowerCase();
-    const filtered = allData.filter(r =>
-      (!tinh || r["Tỉnh/TP"] === tinh) &&
-      (!xa || r["Xã/Phường"] === xa) &&
-      ( (
-          (r["Họ tên"]||"").toLowerCase().includes(search) ||
-          (r["Chức vụ"]||"").toLowerCase().includes(search) ||
-          (r["Thôn/Xóm"]||"").toLowerCase().includes(search)
-        )
-      )
-    );
-    renderTable(filtered);
-  }
-
-  // ✅ Load đầu tiên
-  loadData();
-
-  // 🔁 Cập nhật lại mỗi 15 phút = 15×60×1000 ms
-  setInterval(loadData, 15 * 60 * 1000);
-</script>
+  <script src="script.js"></script>
+</body>
+</html>
