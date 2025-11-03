@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: "Segoe UI", Roboto, sans-serif;
       background-color: #f9fafb;
       color: #111827;
       margin: 0;
@@ -14,14 +14,15 @@
     }
     h1 {
       text-align: center;
-      color: #1d4ed8;
+      color: #1e40af;
+      margin-bottom: 15px;
     }
     table {
       border-collapse: collapse;
       width: 100%;
-      margin-top: 20px;
-      background-color: white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      background: white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      font-size: 14px;
     }
     th, td {
       border: 1px solid #e5e7eb;
@@ -29,13 +30,21 @@
       text-align: left;
     }
     th {
-      background-color: #e0e7ff;
+      background: #dbeafe;
+      color: #1e3a8a;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    tr:nth-child(even) {
+      background: #f9fafb;
     }
     tr:hover {
-      background-color: #f3f4f6;
+      background: #e0f2fe;
     }
     .filter-box {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 10px;
       justify-content: center;
@@ -43,7 +52,19 @@
     select, input {
       padding: 6px 10px;
       border: 1px solid #d1d5db;
-      border-radius: 4px;
+      border-radius: 6px;
+      min-width: 180px;
+    }
+    .call-btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .call-btn:hover {
+      background: #059669;
     }
   </style>
 </head>
@@ -52,12 +73,12 @@
 
   <div class="filter-box">
     <select id="filter-tinh">
-      <option value="">-- Chọn Tỉnh/Thành --</option>
+      <option value="">-- Chọn Tỉnh/Thành phố --</option>
     </select>
     <select id="filter-xa">
       <option value="">-- Chọn Xã/Phường --</option>
     </select>
-    <input type="text" id="search" placeholder="Tìm theo tên hoặc chức vụ...">
+    <input type="text" id="search" placeholder="Tìm theo tên, chức vụ hoặc thôn/xóm...">
   </div>
 
   <table id="data-table">
@@ -79,38 +100,103 @@
   </table>
 
   <script>
-    // 🔗 API lấy dữ liệu từ Google Sheet (bạn đã cung cấp)
-    const sheetURL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLgppCAEl0RthK6-BToah4P-HMYJqGV1Bf86IySA7xW02iAIu-aB_e-XD1qQDcR4oeCKGRT1hZlCKRlfcMvi27EeJy0r0F6CwFifjghDd0WrYATzP1S6MxwTeIGcLxVq8v4uVeRsgQQEC0nv67R1jq3U7-SZSEgF6AdVdcLd2UB0-tb_zeIRUasP3ZZ8ifnTsKo1CTegLs4J75PGlprbfoDADSZ-k49z1I5XtbAtZrw049RQRQ8Vj6Dx39XTh4S2Gy1RXy0UoDEDa1vJBymE_83URjxU8w&lib=MNlCDEoLrZA_U2CivsAHrwTJOzZw8k3LO";
+    const sheetURL =
+      "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLgppCAEl0RthK6-BToah4P-HMYJqGV1Bf86IySA7xW02iAIu-aB_e-XD1qQDcR4oeCKGRT1hZlCKRlfcMvi27EeJy0r0F6CwFifjghDd0WrYATzP1S6MxwTeIGcLxVq8v4uVeRsgQQEC0nv67R1jq3U7-SZSEgF6AdVdcLd2UB0-tb_zeIRUasP3ZZ8ifnTsKo1CTegLs4J75PGlprbfoDADSZ-k49z1I5XtbAtZrw049RQRQ8Vj6Dx39XTh4S2Gy1RXy0UoDEDa1vJBymE_83URjxU8w&lib=MNlCDEoLrZA_U2CivsAHrwTJOzZw8k3LO";
 
     let allData = [];
 
-    // 📦 Hàm tải dữ liệu từ API
     async function loadData() {
       try {
         const res = await fetch(sheetURL);
-        const data = await res.json();
-        allData = data;
-        renderTable(data);
-        fillFilters(data);
-      } catch (err) {
+        const json = await res.json();
+        allData = json;
+        allData.sort((a, b) =>
+          (a["Tỉnh/TP"] || "").localeCompare(b["Tỉnh/TP"]) ||
+          (a["Xã/Phường"] || "").localeCompare(b["Xã/Phường"]) ||
+          (a["Thôn/Xóm"] || "").localeCompare(b["Thôn/Xóm"])
+        );
+        renderTable(allData);
+        fillFilters(allData);
+      } catch (e) {
         document.getElementById("data-body").innerHTML =
-          "<tr><td colspan='8' align='center'>Không thể tải dữ liệu!</td></tr>";
-        console.error("Lỗi tải dữ liệu:", err);
+          "<tr><td colspan='8' align='center'>❌ Lỗi tải dữ liệu!</td></tr>";
+        console.error("Lỗi:", e);
       }
     }
 
-    // 🧭 Hiển thị dữ liệu vào bảng
     function renderTable(data) {
       const tbody = document.getElementById("data-body");
       tbody.innerHTML = "";
-      if (data.length === 0) {
+      if (!data.length) {
         tbody.innerHTML = "<tr><td colspan='8' align='center'>Không có dữ liệu</td></tr>";
         return;
       }
 
       data.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${row["Tỉnh/TP"] || ""}</td>
-          <td>${row["Xã/Phường"] || ""}</td>
-          <td>${row["Thôn/Xóm"] || ""}</td>
+        const sdt = row["SĐT"] ? `<button class='call-btn' onclick="window.location.href='tel:${row["SĐT"]}'">📞 Gọi</button> ${row["SĐT"]}` : "";
+        const tr = `
+          <tr>
+            <td>${row["Tỉnh/TP"] || ""}</td>
+            <td>${row["Xã/Phường"] || ""}</td>
+            <td>${row["Thôn/Xóm"] || ""}</td>
+            <td>${row["Họ tên"] || ""}</td>
+            <td>${row["Chức vụ"] || ""}</td>
+            <td>${sdt}</td>
+            <td>${row["Trước sáp nhập"] || ""}</td>
+            <td>${row["Đặc điểm địa hình"] || ""}</td>
+          </tr>`;
+        tbody.insertAdjacentHTML("beforeend", tr);
+      });
+    }
+
+    function fillFilters(data) {
+      const tinhSelect = document.getElementById("filter-tinh");
+      const xaSelect = document.getElementById("filter-xa");
+
+      const tinhList = [...new Set(data.map(d => d["Tỉnh/TP"]).filter(Boolean))];
+      tinhList.forEach(tinh => {
+        const opt = document.createElement("option");
+        opt.value = tinh;
+        opt.textContent = tinh;
+        tinhSelect.appendChild(opt);
+      });
+
+      tinhSelect.addEventListener("change", () => {
+        const selectedTinh = tinhSelect.value;
+        const xaList = [...new Set(data.filter(d => d["Tỉnh/TP"] === selectedTinh).map(d => d["Xã/Phường"]))];
+        xaSelect.innerHTML = '<option value="">-- Chọn Xã/Phường --</option>';
+        xaList.forEach(xa => {
+          const opt = document.createElement("option");
+          opt.value = xa;
+          opt.textContent = xa;
+          xaSelect.appendChild(opt);
+        });
+        filterData();
+      });
+
+      xaSelect.addEventListener("change", filterData);
+      document.getElementById("search").addEventListener("input", filterData);
+    }
+
+    function filterData() {
+      const tinh = document.getElementById("filter-tinh").value;
+      const xa = document.getElementById("filter-xa").value;
+      const keyword = document.getElementById("search").value.toLowerCase();
+
+      const filtered = allData.filter(row =>
+        (!tinh || row["Tỉnh/TP"] === tinh) &&
+        (!xa || row["Xã/Phường"] === xa) &&
+        (
+          (row["Họ tên"] || "").toLowerCase().includes(keyword) ||
+          (row["Chức vụ"] || "").toLowerCase().includes(keyword) ||
+          (row["Thôn/Xóm"] || "").toLowerCase().includes(keyword)
+        )
+      );
+
+      renderTable(filtered);
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
