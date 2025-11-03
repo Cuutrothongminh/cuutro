@@ -2,136 +2,115 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
+  <title>Danh bạ Chính quyền Cứu trợ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Danh bạ Chính quyền các cấp</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f6f7fb; }
-    h1 { text-align: center; color: #2c3e50; }
-    input, select {
-      margin: 8px; padding: 8px; border-radius: 6px;
-      border: 1px solid #ccc; font-size: 14px;
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9fafb;
+      color: #111827;
+      margin: 0;
+      padding: 20px;
     }
-    table { width: 100%; border-collapse: collapse; background: white; margin-top: 15px; }
+    h1 {
+      text-align: center;
+      color: #1d4ed8;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+      background-color: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
     th, td {
-      padding: 10px; border-bottom: 1px solid #ddd;
-      text-align: left; font-size: 14px;
+      border: 1px solid #e5e7eb;
+      padding: 8px 10px;
+      text-align: left;
     }
-    th { background-color: #2980b9; color: white; }
-    tr:hover { background-color: #f1f1f1; }
-    .filters { text-align: center; margin-bottom: 15px; }
+    th {
+      background-color: #e0e7ff;
+    }
+    tr:hover {
+      background-color: #f3f4f6;
+    }
+    .filter-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      justify-content: center;
+    }
+    select, input {
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
-  <h1>📘 Danh bạ Chính quyền các cấp</h1>
+  <h1>Danh bạ Chính quyền Cứu trợ</h1>
 
-  <div class="filters">
-    <input type="text" id="searchInput" placeholder="🔍 Tìm theo tên người, xã, thôn, chức vụ..." onkeyup="filterTable()">
-    <select id="provinceSelect" onchange="filterTable()">
-      <option value="">-- Chọn Tỉnh/Thành phố --</option>
+  <div class="filter-box">
+    <select id="filter-tinh">
+      <option value="">-- Chọn Tỉnh/Thành --</option>
     </select>
-    <select id="districtSelect" onchange="filterTable()">
-      <option value="">-- Chọn Huyện/Thị xã/TP --</option>
-    </select>
-    <select id="communeSelect" onchange="filterTable()">
+    <select id="filter-xa">
       <option value="">-- Chọn Xã/Phường --</option>
     </select>
+    <input type="text" id="search" placeholder="Tìm theo tên hoặc chức vụ...">
   </div>
 
-  <table id="dataTable">
+  <table id="data-table">
     <thead>
       <tr>
-        <th>Tỉnh/Thành phố</th>
-        <th>Huyện/Thị xã/TP</th>
+        <th>Tỉnh/TP</th>
         <th>Xã/Phường</th>
         <th>Thôn/Xóm</th>
-        <th>Họ và tên</th>
+        <th>Họ tên</th>
         <th>Chức vụ</th>
         <th>Số điện thoại</th>
         <th>Trước sáp nhập</th>
         <th>Đặc điểm địa hình</th>
       </tr>
     </thead>
-    <tbody></tbody>
+    <tbody id="data-body">
+      <tr><td colspan="8" align="center">Đang tải dữ liệu...</td></tr>
+    </tbody>
   </table>
 
   <script>
-    const sheetID = "12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU";
-    const sheetName = "Tổng";
-    const sheetURL = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:json&sheet=${sheetName}`;
+    // 🔗 API lấy dữ liệu từ Google Sheet (bạn đã cung cấp)
+    const sheetURL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLgppCAEl0RthK6-BToah4P-HMYJqGV1Bf86IySA7xW02iAIu-aB_e-XD1qQDcR4oeCKGRT1hZlCKRlfcMvi27EeJy0r0F6CwFifjghDd0WrYATzP1S6MxwTeIGcLxVq8v4uVeRsgQQEC0nv67R1jq3U7-SZSEgF6AdVdcLd2UB0-tb_zeIRUasP3ZZ8ifnTsKo1CTegLs4J75PGlprbfoDADSZ-k49z1I5XtbAtZrw049RQRQ8Vj6Dx39XTh4S2Gy1RXy0UoDEDa1vJBymE_83URjxU8w&lib=MNlCDEoLrZA_U2CivsAHrwTJOzZw8k3LO";
 
     let allData = [];
 
+    // 📦 Hàm tải dữ liệu từ API
     async function loadData() {
       try {
         const res = await fetch(sheetURL);
-        const text = await res.text();
-        const json = JSON.parse(text.substr(47).slice(0, -2));
-        const rows = json.table.rows.map(r => r.c.map(c => c ? c.v : ""));
-        allData = rows.slice(1); // Bỏ hàng tiêu đề
-        fillTable(allData);
-        fillDropdowns(allData);
+        const data = await res.json();
+        allData = data;
+        renderTable(data);
+        fillFilters(data);
       } catch (err) {
+        document.getElementById("data-body").innerHTML =
+          "<tr><td colspan='8' align='center'>Không thể tải dữ liệu!</td></tr>";
         console.error("Lỗi tải dữ liệu:", err);
       }
     }
 
-    function fillDropdowns(data) {
-      const provinces = [...new Set(data.map(r => r[0]))];
-      const provinceSelect = document.getElementById("provinceSelect");
-      provinces.forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = p; opt.textContent = p;
-        provinceSelect.appendChild(opt);
-      });
-    }
-
-    function fillTable(data) {
-      const tbody = document.querySelector("#dataTable tbody");
+    // 🧭 Hiển thị dữ liệu vào bảng
+    function renderTable(data) {
+      const tbody = document.getElementById("data-body");
       tbody.innerHTML = "";
-      data.forEach(r => {
-        const tr = document.createElement("tr");
-        r.forEach((cell, i) => {
-          const td = document.createElement("td");
-          td.textContent = cell;
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
-    }
-
-    function filterTable() {
-      const search = document.getElementById("searchInput").value.toLowerCase();
-      const province = document.getElementById("provinceSelect").value;
-      const district = document.getElementById("districtSelect").value;
-      const commune = document.getElementById("communeSelect").value;
-
-      let filtered = allData.filter(r =>
-        (!province || r[0] === province) &&
-        (!district || r[1] === district) &&
-        (!commune || r[2] === commune) &&
-        r.join(" ").toLowerCase().includes(search)
-      );
-      fillTable(filtered);
-      updateDistrictsAndCommunes(province, filtered);
-    }
-
-    function updateDistrictsAndCommunes(province, data) {
-      const districtSelect = document.getElementById("districtSelect");
-      const communeSelect = document.getElementById("communeSelect");
-      districtSelect.innerHTML = '<option value="">-- Chọn Huyện/Thị xã/TP --</option>';
-      communeSelect.innerHTML = '<option value="">-- Chọn Xã/Phường --</option>';
-
-      if (province) {
-        const districts = [...new Set(data.map(r => r[1]))];
-        districts.forEach(d => {
-          const opt = document.createElement("option");
-          opt.value = d; opt.textContent = d;
-          districtSelect.appendChild(opt);
-        });
+      if (data.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='8' align='center'>Không có dữ liệu</td></tr>";
+        return;
       }
-    }
 
-    loadData();
-  </script>
-</body>
-</html>
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row["Tỉnh/TP"] || ""}</td>
+          <td>${row["Xã/Phường"] || ""}</td>
+          <td>${row["Thôn/Xóm"] || ""}</td>
