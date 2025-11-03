@@ -106,7 +106,7 @@ async function updateWeatherStatus() {
   const uniqueCommunes = {};
   globalData.forEach(r => {
     const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
-    uniqueCommunes[key] = r;
+    if (!uniqueCommunes[key]) uniqueCommunes[key] = r;
   });
 
   // Parallel fetch weather
