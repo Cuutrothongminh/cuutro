@@ -1,100 +1,71 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BẢNG CỨU TRỢ THÔNG MINH – TỰ CẬP NHẬT MỖI 15 PHÚT</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Danh bạ cứu trợ thông minh — cập nhật ngập tự động</title>
   <style>
-    body {
-      font-family: "Segoe UI", sans-serif;
-      background-color: #f3f7fb;
-      text-align: center;
-      margin: 0;
-      padding: 0;
+    :root{
+      --primary:#0078d7;
+      --bg:#f3f7fb;
+      --card:#fff;
+      --muted:#666;
     }
-    header {
-      background: #0078d7;
-      color: #fff;
-      padding: 15px;
-      font-size: 20px;
-      font-weight: bold;
-    }
-    #update-status {
-      margin: 10px 0;
-      font-size: 14px;
-      color: #333;
-    }
-    .search-box {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin: 10px 0;
-    }
-    .search-box input {
-      width: 300px;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-    }
-    .search-box button {
-      background: #0078d7;
-      color: #fff;
-      border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    .search-box button:hover {
-      background: #005fa3;
-    }
-    table {
-      width: 95%;
-      margin: 0 auto;
-      border-collapse: collapse;
-      background: #fff;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    }
-    th, td {
-      border: 1px solid #e2e2e2;
-      padding: 8px;
-      text-align: left;
-    }
-    th {
-      background: #e9f2ff;
-    }
-    tr:nth-child(even) {
-      background: #f8fbff;
-    }
+    body{margin:0;font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif;background:var(--bg);color:#222}
+    header{background:var(--primary);color:#fff;padding:12px;text-align:center;font-weight:700}
+    .container{max-width:1200px;margin:16px auto;padding:0 12px}
+    #update-status{color:var(--muted);text-align:center;margin:8px 0}
+    .controls{display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+    .controls input{padding:10px;border-radius:8px;border:1px solid #d0e6fb;width:420px;max-width:90%}
+    .controls button{background:var(--primary);color:#fff;border:0;padding:10px 14px;border-radius:8px;cursor:pointer}
+    table{width:100%;border-collapse:collapse;background:var(--card);box-shadow:0 2px 6px rgba(0,0,0,.06);border-radius:6px;overflow:hidden}
+    th,td{padding:10px;border-bottom:1px solid #e9f3ff;text-align:left;vertical-align:top;font-size:14px}
+    thead th{background:#e6f6ff;color:var(--primary);font-weight:700}
+    tr.group-province td{background:#cfe9ff;font-weight:700;color:#013a6b}
+    tr.group-commune td{background:#eaf4ff;font-weight:600;color:#04508a}
+    a.call{display:inline-block;background:#28a745;color:#fff;padding:6px 8px;border-radius:6px;text-decoration:none;margin-right:6px;font-size:13px}
+    .status-safe{color:green;font-weight:700}
+    .status-warning{color:orange;font-weight:700}
+    .status-flood{color:red;font-weight:700}
+    .note{font-size:13px;color:var(--muted);text-align:center;margin-top:10px}
+    @media(max-width:900px){th,td{font-size:13px;padding:8px}}
   </style>
 </head>
-
 <body>
-  <header>🌊 BẢNG CỨU TRỢ THÔNG MINH – TỰ CẬP NHẬT MỖI 15 PHÚT</header>
-  <div id="update-status">Đang tải dữ liệu...</div>
+  <header>🌊 Danh bạ cứu trợ thông minh — cập nhật & cảnh báo ngập (Open-Meteo + SRTM)</header>
 
-  <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Nhập tên Tỉnh, Xã hoặc Huyện để tìm..." />
-    <button id="searchBtn">🔍 Tìm nhanh</button>
+  <div class="container">
+    <div id="update-status">Đang tải dữ liệu...</div>
+
+    <div class="controls">
+      <input id="searchInput" placeholder="Nhập tên Tỉnh / Xã / Họ tên / SĐT để tìm..." />
+      <button id="searchBtn">🔍 Tìm nhanh</button>
+      <button id="clearBtn" title="Xóa filter">✖ Xóa</button>
+      <button id="refreshBtn" title="Tải lại dữ liệu">🔄 Tải lại</button>
+    </div>
+
+    <div style="overflow:auto">
+      <table id="dataTable" aria-label="Danh bạ cứu trợ">
+        <thead>
+          <tr>
+            <th style="width:16%">Tỉnh/TP</th>
+            <th style="width:18%">Xã/Phường</th>
+            <th style="width:10%">Thôn / Xóm</th>
+            <th style="width:18%">Họ và tên</th>
+            <th style="width:12%">Chức vụ</th>
+            <th style="width:10%">SĐT</th>
+            <th style="width:10%">Đặc điểm địa hình</th>
+            <th style="width:12%">Trạng thái ngập</th>
+          </tr>
+        </thead>
+        <tbody id="data-body">
+          <!-- sẽ được điền bằng script.js -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">Ghi chú: trạng thái ngập ước lượng bằng mưa (Open-Meteo) + cao độ (SRTM). Độ chính xác phụ thuộc nguồn dữ liệu và tên địa phương.</div>
   </div>
-
-  <table id="dataTable">
-    <thead>
-      <tr>
-        <th>Tỉnh/TP</th>
-        <th>Xã/Phường</th>
-        <th>Họ và tên</th>
-        <th>Chức vụ</th>
-        <th>Số điện thoại</th>
-        <th>Trước sáp nhập</th>
-        <th>Đặc điểm địa hình</th>
-        <th>Trạng thái ngập</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
 
   <script src="script.js"></script>
 </body>
