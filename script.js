@@ -13,7 +13,10 @@ async function fetchData() {
     const res = await fetch(sheetURL + "&t=" + Date.now()); // tránh cache
     const text = await res.text();
     const json = JSON.parse(text.substring(47).slice(0, -2));
-    const rows = json.table.rows.map(r => r.c.map(c => (c ? c.v : "")));
+
+    const rows = json.table.rows
+      .map(r => r.c?.map(c => (c && c.v ? c.v.toString().trim() : "")))
+      .filter(r => r && r.some(x => x !== "")); // bỏ hàng trống
 
     const headers = [
       "Tỉnh/TP",
@@ -26,22 +29,29 @@ async function fetchData() {
       "Trạng thái ngập",
     ];
 
-    let data = rows.map(r => {
+    const data = rows.map(r => {
       const obj = {};
       headers.forEach((h, i) => (obj[h] = r[i] || ""));
       return obj;
     });
 
-    // Gộp theo xã/phường
+    // --- Gộp xã/phường theo mức độ ngập cao nhất ---
+    const priority = {
+      "Ngập nặng": 4,
+      "Ngập sâu": 3,
+      "Ngập nhẹ": 2,
+      "Bình thường": 1,
+      "": 0,
+    };
+
     const merged = {};
     for (const row of data) {
-      const key = row["Tỉnh/TP"] + " - " + row["Xã/Phường"];
-      if (!merged[key]) merged[key] = row;
+      const key = `${row["Tỉnh/TP"]} - ${row["Xã/Phường"]}`;
+      if (!merged[key]) merged[key] = { ...row };
       else {
-        const priority = { "Ngập nặng": 3, "Ngập nhẹ": 2, "Bình thường": 1 };
-        const current = priority[merged[key]["Trạng thái ngập"]] || 0;
-        const newVal = priority[row["Trạng thái ngập"]] || 0;
-        if (newVal > current) merged[key]["Trạng thái ngập"] = row["Trạng thái ngập"];
+        const oldLevel = priority[merged[key]["Trạng thái ngập"]] || 0;
+        const newLevel = priority[row["Trạng thái ngập"]] || 0;
+        if (newLevel > oldLevel) merged[key]["Trạng thái ngập"] = row["Trạng thái ngập"];
       }
     }
 
@@ -49,16 +59,23 @@ async function fetchData() {
     renderData(globalData);
     statusDiv.textContent = `🕓 Cập nhật lần cuối: ${new Date().toLocaleString("vi-VN")}`;
   } catch (err) {
-    statusDiv.textContent = "⚠️ Lỗi khi tải dữ liệu!";
-    console.error(err);
+    console.error("Fetch error:", err);
+    statusDiv.textContent =
+      "❌ Không tải được dữ liệu. Kiểm tra lại link Google Sheet hoặc quyền chia sẻ!";
   }
 }
 
 function renderData(data) {
   dataBody.innerHTML = "";
+
+  if (!data.length) {
+    dataBody.innerHTML = `<tr><td colspan="8" style="text-align:center;">Không có dữ liệu</td></tr>`;
+    return;
+  }
+
   data.forEach(r => {
     const statusClass =
-      r["Trạng thái ngập"] === "Ngập nặng"
+      r["Trạng thái ngập"] === "Ngập nặng" || r["Trạng thái ngập"] === "Ngập sâu"
         ? "status-flood"
         : r["Trạng thái ngập"] === "Ngập nhẹ"
         ? "status-warning"
@@ -79,8 +96,14 @@ function renderData(data) {
   });
 }
 
+// --- Tìm nhanh địa phương ---
 function searchData() {
   const keyword = searchInput.value.trim().toLowerCase();
+  if (!keyword) {
+    renderData(globalData);
+    return;
+  }
+
   const filtered = globalData.filter(r =>
     Object.values(r).some(v => v.toLowerCase().includes(keyword))
   );
@@ -92,8 +115,8 @@ searchInput.addEventListener("keypress", e => {
   if (e.key === "Enter") searchData();
 });
 
-// Lần đầu load
+// --- Lần đầu tải ---
 fetchData();
 
-// Tự động tải lại dữ liệu mỗi 15 phút (900.000 ms)
+// --- Cập nhật tự động mỗi 15 phút ---
 setInterval(fetchData, 900000);
