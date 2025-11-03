@@ -3,92 +3,84 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bản đồ Cứu trợ thông minh 🌊</title>
-  <link rel="icon" href="icon.png">
+  <title>BẢNG CỨU TRỢ THÔNG MINH – TỰ CẬP NHẬT MỖI 15 PHÚT</title>
+  <link rel="stylesheet" href="style.css" />
   <style>
     body {
-      font-family: "Segoe UI", Roboto, sans-serif;
-      background: #f3f7fb;
+      font-family: "Segoe UI", sans-serif;
+      background-color: #f3f7fb;
+      text-align: center;
       margin: 0;
       padding: 0;
     }
     header {
       background: #0078d7;
-      color: white;
-      text-align: center;
-      padding: 12px;
-      font-size: 1.3em;
-      font-weight: 600;
+      color: #fff;
+      padding: 15px;
+      font-size: 20px;
+      font-weight: bold;
     }
     #update-status {
-      text-align: center;
-      font-size: 0.9em;
-      color: #444;
       margin: 10px 0;
+      font-size: 14px;
+      color: #333;
     }
     .search-box {
       display: flex;
       justify-content: center;
       align-items: center;
       gap: 10px;
-      margin-bottom: 10px;
+      margin: 10px 0;
     }
     .search-box input {
-      padding: 8px 12px;
+      width: 300px;
+      padding: 8px;
       border: 1px solid #ccc;
-      border-radius: 6px;
-      width: 260px;
-      font-size: 1em;
+      border-radius: 8px;
     }
     .search-box button {
-      padding: 8px 14px;
       background: #0078d7;
-      color: white;
+      color: #fff;
       border: none;
-      border-radius: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 1em;
+      font-weight: bold;
     }
     .search-box button:hover {
       background: #005fa3;
     }
     table {
-      border-collapse: collapse;
       width: 95%;
-      margin: 10px auto;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin: 0 auto;
+      border-collapse: collapse;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
     th, td {
-      border: 1px solid #ddd;
-      padding: 8px 10px;
+      border: 1px solid #e2e2e2;
+      padding: 8px;
       text-align: left;
-      font-size: 0.95em;
     }
     th {
-      background: #e6f2ff;
-      font-weight: bold;
+      background: #e9f2ff;
     }
     tr:nth-child(even) {
-      background: #f9f9f9;
+      background: #f8fbff;
     }
-    .status-safe { color: green; font-weight: bold; }
-    .status-warning { color: orange; font-weight: bold; }
-    .status-flood { color: red; font-weight: bold; }
   </style>
 </head>
+
 <body>
   <header>🌊 BẢNG CỨU TRỢ THÔNG MINH – TỰ CẬP NHẬT MỖI 15 PHÚT</header>
   <div id="update-status">Đang tải dữ liệu...</div>
 
-  <!-- 🔍 Ô tìm kiếm -->
   <div class="search-box">
     <input type="text" id="searchInput" placeholder="Nhập tên Tỉnh, Xã hoặc Huyện để tìm..." />
-    <button onclick="filterTable()">🔍 Tìm nhanh</button>
+    <button id="searchBtn">🔍 Tìm nhanh</button>
   </div>
 
-  <table>
+  <table id="dataTable">
     <thead>
       <tr>
         <th>Tỉnh/TP</th>
@@ -101,7 +93,7 @@
         <th>Trạng thái ngập</th>
       </tr>
     </thead>
-    <tbody id="data-body"></tbody>
+    <tbody></tbody>
   </table>
 
   <script src="script.js"></script>
