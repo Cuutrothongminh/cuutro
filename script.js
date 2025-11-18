@@ -1,4 +1,4 @@
-const SHEET_URL="https://docs.google.com/spreadsheets/d/12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU/gviz/tq?tqx=out:json&gid=325047141";
+const SHEET_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vSpEwf_8qc6OYiOD8WhhuXkRNaH92ZrrN9gO20a2oVZj0IlhKnihmqVsALAfPzcWCetmvr30QHkC447/pubhtml?gid=325047141&single=true";
 const AUTO_INTERVAL=15*60*1000;
 
 let dataRows=[], currentPage=1, pageSize=50, map, markers={};
