@@ -1,151 +1,110 @@
-const sheetURL = "https://docs.google.com/spreadsheets/d/12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU/gviz/tq?tqx=out:json&gid=325047141";
+const API_KEY = "29bae1383ca3c78ad32949ccd7aaf7e0";
+
+const sheetURL =
+  "https://docs.google.com/spreadsheets/d/12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU/gviz/tq?tqx=out:json&gid=325047141";
+
 const statusDiv = document.getElementById("update-status");
 const dataBody = document.getElementById("dataBody");
 const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
 
 let globalData = [];
-const OPENWEATHER_API_KEY = "YOUR_OPENWEATHERMAP_API_KEY";
+let geoCache = JSON.parse(localStorage.getItem("geoCache") || "{}");
 
-// Cache geocoding + weather
-let geoCache = {};
-let weatherCache = {};
-if (localStorage.getItem("geoCache")) geoCache = JSON.parse(localStorage.getItem("geoCache"));
-if (localStorage.getItem("weatherCache")) weatherCache = JSON.parse(localStorage.getItem("weatherCache"));
+async function fetchGeocode(xa, tinh) {
+  const key = `${xa}-${tinh}`.toLowerCase();
 
-// --- Lấy dữ liệu Google Sheet ---
+  if (geoCache[key]) return geoCache[key];
+
+  const url =
+    `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(
+      xa
+    )},${encodeURIComponent(tinh)},Vietnam&limit=1&appid=${API_KEY}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (!data.length) return null;
+
+  geoCache[key] = { lat: data[0].lat, lon: data[0].lon };
+  localStorage.setItem("geoCache", JSON.stringify(geoCache));
+
+  return geoCache[key];
+}
+
+async function fetchRain(lat, lon) {
+  const url =
+    `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  return data.rain?.["1h"] || 0;
+}
+
+function classifyFlood(rain) {
+  if (rain >= 50) return "Ngập nặng";
+  if (rain >= 30) return "Ngập sâu";
+  if (rain >= 10) return "Ngập nhẹ";
+  return "Bình thường";
+}
+
 async function fetchData() {
   try {
     const res = await fetch(sheetURL + "&t=" + Date.now());
     const text = await res.text();
     const json = JSON.parse(text.substring(47).slice(0, -2));
 
-    const rows = json.table.rows
-      .map(r => r.c?.map(c => (c && c.v ? c.v.toString().trim() : "")))
-      .filter(r => r && r.some(x => x !== "") && r[0] !== "Tỉnh/TP");
+    const rows = json.table.rows.map(r => r.c.map(c => (c && c.v ? c.v + "" : "")));
 
-    const headers = [
-      "Tỉnh/TP",
-      "Xã/Phường",
-      "Họ và tên",
-      "Chức vụ",
-      "SĐT",
-      "Trước sáp nhập",
-      "Huyện - Tỉnh cũ",
-      "Đặc điểm địa hình",
-      "Trạng thái ngập",
-    ];
+    globalData = rows.map(r => ({
+      "Tỉnh/TP": r[0] || "",
+      "Xã/Phường": r[1] || "",
+      "Chức vụ": r[3] || "",
+      "Họ và tên": r[2] || "",
+      "SĐT": r[4] || "",
+      "Trước sáp nhập": r[5] || "",
+      "Huyện - Tỉnh cũ": r[6] || "",
+      "Đặc điểm địa hình": r[7] || "",
+      rain: 0,
+      flood: "Đang cập nhật..."
+    }));
 
-    globalData = rows.map(r => {
-      const obj = {};
-      headers.forEach((h, i) => (obj[h] = r[i] || ""));
-      return obj;
-    });
+    await updateWeather();
 
-    await updateWeatherStatus();
-  } catch (err) {
-    console.error("Fetch error:", err);
+    renderData(globalData);
+    statusDiv.textContent = "🕓 Cập nhật: " + new Date().toLocaleString("vi-VN");
+
+  } catch (e) {
+    console.error(e);
     statusDiv.textContent = "❌ Không tải được dữ liệu từ Google Sheet!";
   }
 }
 
-// --- Lấy tọa độ với cache ---
-async function getLatLon(province, commune) {
-  const key = `${province}-${commune}`;
-  if (geoCache[key]) return geoCache[key];
+async function updateWeather() {
+  for (let row of globalData) {
+    const geo = await fetchGeocode(row["Xã/Phường"], row["Tỉnh/TP"]);
 
-  try {
-    const geoRes = await fetch(
-      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(commune + "," + province + ",VN")}&limit=1&appid=${OPENWEATHER_API_KEY}`
-    );
-    const geoData = await geoRes.json();
-    if (!geoData || !geoData[0]) return null;
-
-    const { lat, lon } = geoData[0];
-    geoCache[key] = { lat, lon };
-    localStorage.setItem("geoCache", JSON.stringify(geoCache));
-    return { lat, lon };
-  } catch (err) {
-    console.error("Geo fetch error:", err);
-    return null;
-  }
-}
-
-// --- Lấy weather với cache ---
-async function getWeatherWithCache(province, commune, lat, lon) {
-  const key = `${province}-${commune}`;
-  if (weatherCache[key]) return weatherCache[key];
-
-  try {
-    const weatherRes = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`
-    );
-    const weatherData = await weatherRes.json();
-    const rain = weatherData.rain?.["1h"] ?? weatherData.rain?.["3h"] ?? 0;
-
-    let status;
-    if (rain > 50) status = "Ngập nặng";
-    else if (rain > 30) status = "Ngập sâu";
-    else if (rain > 10) status = "Ngập nhẹ";
-    else status = "Bình thường";
-
-    weatherCache[key] = { rain, status };
-    localStorage.setItem("weatherCache", JSON.stringify(weatherCache));
-    return { rain, status };
-  } catch (err) {
-    console.error("Weather fetch error:", err);
-    return { rain: 0, status: "Bình thường" };
-  }
-}
-
-// --- Cập nhật trạng thái mưa/ngập ---
-async function updateWeatherStatus() {
-  statusDiv.textContent = "🕓 Đang tải dữ liệu thời tiết...";
-
-  const uniqueCommunes = {};
-  globalData.forEach(r => {
-    const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
-    if (!uniqueCommunes[key]) uniqueCommunes[key] = r;
-  });
-
-  const promises = Object.values(uniqueCommunes).map(async r => {
-    const geo = await getLatLon(r["Tỉnh/TP"], r["Xã/Phường"]);
-    if (geo) {
-      const result = await getWeatherWithCache(r["Tỉnh/TP"], r["Xã/Phường"], geo.lat, geo.lon);
-      r["Rain"] = result.rain;
-      r["Trạng thái ngập"] = result.status;
-    } else {
-      r["Rain"] = 0;
-      r["Trạng thái ngập"] = "Bình thường";
+    if (!geo) {
+      row.rain = 0;
+      row.flood = "Không có dữ liệu";
+      continue;
     }
-  });
 
-  await Promise.all(promises);
+    const rain = await fetchRain(geo.lat, geo.lon);
 
-  globalData.forEach(r => {
-    const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
-    const uniqueData = uniqueCommunes[key];
-    r["Rain"] = uniqueData["Rain"];
-    r["Trạng thái ngập"] = uniqueData["Trạng thái ngập"];
-  });
-
-  renderData(globalData);
-  statusDiv.textContent = `🕓 Cập nhật lần cuối: ${new Date().toLocaleString("vi-VN")}`;
+    row.rain = rain;
+    row.flood = classifyFlood(rain);
+  }
 }
 
-// --- Render dữ liệu ---
 function renderData(data) {
   dataBody.innerHTML = "";
-  if (!data.length) {
-    dataBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">Không có dữ liệu</td></tr>`;
-    return;
-  }
 
   data.forEach(r => {
-    const statusClass =
-      r["Trạng thái ngập"] === "Ngập nặng" || r["Trạng thái ngập"] === "Ngập sâu"
+    const cls =
+      r.flood.includes("nặng") || r.flood.includes("sâu")
         ? "status-flood"
-        : r["Trạng thái ngập"] === "Ngập nhẹ"
+        : r.flood.includes("nhẹ")
         ? "status-warning"
         : "status-safe";
 
@@ -153,29 +112,27 @@ function renderData(data) {
     tr.innerHTML = `
       <td>${r["Tỉnh/TP"]}</td>
       <td>${r["Xã/Phường"]}</td>
-      <td>${r["Họ và tên"]}</td>
       <td>${r["Chức vụ"]}</td>
+      <td>${r["Họ và tên"]}</td>
       <td>${r["SĐT"]}</td>
       <td>${r["Trước sáp nhập"]}</td>
       <td>${r["Huyện - Tỉnh cũ"]}</td>
       <td>${r["Đặc điểm địa hình"]}</td>
-      <td>${r["Rain"]}</td>
-      <td class="${statusClass}">${r["Trạng thái ngập"]}</td>
+      <td>${r.rain}</td>
+      <td class="${cls}">${r.flood}</td>
     `;
     dataBody.appendChild(tr);
   });
 }
 
-// --- Tìm kiếm nhanh ---
 function searchData() {
-  const keyword = searchInput.value.trim().toLowerCase();
-  if (!keyword) {
-    renderData(globalData);
-    return;
-  }
-  const filtered = globalData.filter(
-    r => r["Tỉnh/TP"].toLowerCase() === keyword || r["Xã/Phường"].toLowerCase() === keyword
+  const kw = searchInput.value.trim().toLowerCase();
+  if (!kw) return renderData(globalData);
+
+  const filtered = globalData.filter(r =>
+    Object.values(r).some(v => (v + "").toLowerCase().includes(kw))
   );
+
   renderData(filtered);
 }
 
@@ -184,8 +141,5 @@ searchInput.addEventListener("keypress", e => {
   if (e.key === "Enter") searchData();
 });
 
-// --- Lần đầu tải ---
 fetchData();
-
-// --- Cập nhật tự động mỗi 15 phút ---
-setInterval(fetchData, 15 * 60 * 1000);
+setInterval(fetchData, 900000);
