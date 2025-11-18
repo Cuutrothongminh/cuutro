@@ -1,145 +1,215 @@
-const API_KEY = "29bae1383ca3c78ad32949ccd7aaf7e0";
+// ==========================================
+// CONFIG
+// ==========================================
+const API_KEY = "29bae1383ca3c78ad32949ccd7aaf7e0";  
+const GOOGLE_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU/gviz/tq?tqx=out:json&gid=0";
 
-const sheetURL =
-  "https://docs.google.com/spreadsheets/d/12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU/gviz/tq?tqx=out:json&gid=325047141";
+let rawData = [];
+let locationCache = {};      // cache geocoding
+let weatherCache = {};       // cache thời tiết
 
-const statusDiv = document.getElementById("update-status");
-const dataBody = document.getElementById("dataBody");
-const searchInput = document.getElementById("searchInput");
-const searchBtn = document.getElementById("searchBtn");
+// ==========================================
+// Fetch Google Sheet
+// ==========================================
+async function loadSheet() {
+    try {
+        const res = await fetch(GOOGLE_SHEET_URL);
+        const text = await res.text();
+        const json = JSON.parse(text.substring(47, text.length - 2));
 
-let globalData = [];
-let geoCache = JSON.parse(localStorage.getItem("geoCache") || "{}");
+        rawData = json.table.rows.map(r => {
+            const c = r.c;
+            return {
+                tinh: c[0]?.v || "",
+                huyen: c[1]?.v || "",
+                xa: c[2]?.v || "",
+                thon: c[3]?.v || "",
+                lienhe: c[4]?.v || "",
+                phone: c[5]?.v || "",
+                diahinh: c[6]?.v || "",
+                ghichu: c[7]?.v || "",
+                lat: c[8]?.v || "",
+                lon: c[9]?.v || ""
+            };
+        });
 
-async function fetchGeocode(xa, tinh) {
-  const key = `${xa}-${tinh}`.toLowerCase();
-
-  if (geoCache[key]) return geoCache[key];
-
-  const url =
-    `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(
-      xa
-    )},${encodeURIComponent(tinh)},Vietnam&limit=1&appid=${API_KEY}`;
-
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if (!data.length) return null;
-
-  geoCache[key] = { lat: data[0].lat, lon: data[0].lon };
-  localStorage.setItem("geoCache", JSON.stringify(geoCache));
-
-  return geoCache[key];
+        buildSidebarTree();
+        renderTable(rawData);
+        document.getElementById("update-status").innerText = "Đã tải xong.";
+    } catch (err) {
+        document.getElementById("update-status").innerText = "Lỗi tải dữ liệu.";
+    }
 }
 
-async function fetchRain(lat, lon) {
-  const url =
-    `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
-  const res = await fetch(url);
-  const data = await res.json();
+// ==========================================
+// SIDEBAR TREE
+// ==========================================
+function buildSidebarTree() {
+    const container = document.getElementById("locationTree");
+    container.innerHTML = "";
 
-  return data.rain?.["1h"] || 0;
+    const grouped = {};
+
+    rawData.forEach(row => {
+        if (!grouped[row.tinh]) grouped[row.tinh] = {};
+        if (!grouped[row.tinh][row.huyen]) grouped[row.tinh][row.huyen] = {};
+        if (!grouped[row.tinh][row.huyen][row.xa]) grouped[row.tinh][row.huyen][row.xa] = true;
+    });
+
+    for (let tinh in grouped) {
+        const tinhDiv = createGroupItem(tinh);
+        const huyenDiv = document.createElement("div");
+        huyenDiv.className = "group-children";
+
+        for (let huyen in grouped[tinh]) {
+            const huyenItem = createGroupItem(huyen);
+            const xaDiv = document.createElement("div");
+            xaDiv.className = "group-children";
+
+            for (let xa in grouped[tinh][huyen]) {
+                const xaItem = document.createElement("div");
+                xaItem.className = "group-title";
+                xaItem.innerText = xa;
+                xaItem.onclick = () => filterTable(tinh, huyen, xa);
+                xaDiv.appendChild(xaItem);
+            }
+
+            huyenItem.appendChild(xaDiv);
+            huyenItem.onclick = (e) => toggleGroup(e, xaDiv);
+            huyenDiv.appendChild(huyenItem);
+        }
+
+        tinhDiv.appendChild(huyenDiv);
+        tinhDiv.onclick = (e) => toggleGroup(e, huyenDiv);
+        container.appendChild(tinhDiv);
+    }
 }
 
-function classifyFlood(rain) {
-  if (rain >= 50) return "Ngập nặng";
-  if (rain >= 30) return "Ngập sâu";
-  if (rain >= 10) return "Ngập nhẹ";
-  return "Bình thường";
+function createGroupItem(name) {
+    const div = document.createElement("div");
+    div.className = "group-title";
+    div.innerText = name;
+    return div;
 }
 
-async function fetchData() {
-  try {
-    const res = await fetch(sheetURL + "&t=" + Date.now());
-    const text = await res.text();
-    const json = JSON.parse(text.substring(47).slice(0, -2));
-
-    const rows = json.table.rows.map(r => r.c.map(c => (c && c.v ? c.v + "" : "")));
-
-    globalData = rows.map(r => ({
-      "Tỉnh/TP": r[0] || "",
-      "Xã/Phường": r[1] || "",
-      "Chức vụ": r[3] || "",
-      "Họ và tên": r[2] || "",
-      "SĐT": r[4] || "",
-      "Trước sáp nhập": r[5] || "",
-      "Huyện - Tỉnh cũ": r[6] || "",
-      "Đặc điểm địa hình": r[7] || "",
-      rain: 0,
-      flood: "Đang cập nhật..."
-    }));
-
-    await updateWeather();
-
-    renderData(globalData);
-    statusDiv.textContent = "🕓 Cập nhật: " + new Date().toLocaleString("vi-VN");
-
-  } catch (e) {
-    console.error(e);
-    statusDiv.textContent = "❌ Không tải được dữ liệu từ Google Sheet!";
-  }
+function toggleGroup(event, childDiv) {
+    event.stopPropagation();
+    childDiv.style.display = childDiv.style.display === "block" ? "none" : "block";
 }
 
-async function updateWeather() {
-  for (let row of globalData) {
-    const geo = await fetchGeocode(row["Xã/Phường"], row["Tỉnh/TP"]);
+// ==========================================
+// RENDER TABLE
+// ==========================================
+async function renderTable(data) {
+    const tbody = document.querySelector("#dataTable tbody");
+    tbody.innerHTML = "";
 
-    if (!geo) {
-      row.rain = 0;
-      row.flood = "Không có dữ liệu";
-      continue;
+    for (const row of data) {
+        const { lat, lon } = await ensureLatLon(row);
+
+        const weather = await fetchWeather(lat, lon);
+
+        const rain = weather?.rain?.["1h"] || weather?.rain?.["3h"] || 0;
+        const rowClass = getRainClass(rain);
+
+        const tr = document.createElement("tr");
+        tr.className = rowClass;
+
+        tr.innerHTML = `
+            <td>${row.tinh}</td>
+            <td>${row.huyen}</td>
+            <td>${row.xa}</td>
+            <td>${row.thon}</td>
+            <td>${row.lienhe}</td>
+            <td>${row.phone}</td>
+            <td>${row.diahinh}</td>
+            <td>${rain.toFixed(1)}</td>
+            <td>${new Date().toLocaleString("vi-VN")}</td>
+            <td><a class="call-btn" href="tel:${row.phone}">Gọi</a></td>
+        `;
+
+        tbody.appendChild(tr);
+    }
+}
+
+function getRainClass(rain) {
+    if (rain < 5) return "rain-low";
+    if (rain < 20) return "rain-mid";
+    if (rain < 50) return "rain-high";
+    return "rain-extreme";
+}
+
+// ==========================================
+// FILTER TABLE
+// ==========================================
+function filterTable(tinh, huyen, xa) {
+    const filtered = rawData.filter(r =>
+        r.tinh === tinh && r.huyen === huyen && r.xa === xa
+    );
+    renderTable(filtered);
+}
+
+// ==========================================
+// GEOCODING (OpenWeatherMap)
+// ==========================================
+async function ensureLatLon(row) {
+    const key = `${row.thon}-${row.xa}-${row.huyen}-${row.tinh}`;
+    if (locationCache[key]) return locationCache[key];
+
+    if (row.lat && row.lon) {
+        locationCache[key] = { lat: row.lat, lon: row.lon };
+        return locationCache[key];
     }
 
-    const rain = await fetchRain(geo.lat, geo.lon);
+    const q = `${row.thon}, ${row.xa}, ${row.huyen}, ${row.tinh}, Việt Nam`;
+    const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(q)}&limit=1&appid=${API_KEY}`;
 
-    row.rain = rain;
-    row.flood = classifyFlood(rain);
-  }
+    const res = await fetch(url);
+    const js = await res.json();
+
+    const lat = js[0]?.lat || 16.0472;
+    const lon = js[0]?.lon || 108.2062;
+
+    locationCache[key] = { lat, lon };
+    return { lat, lon };
 }
 
-function renderData(data) {
-  dataBody.innerHTML = "";
+// ==========================================
+// WEATHER
+// ==========================================
+async function fetchWeather(lat, lon) {
+    const key = `${lat},${lon}`;
+    if (weatherCache[key]) return weatherCache[key];
 
-  data.forEach(r => {
-    const cls =
-      r.flood.includes("nặng") || r.flood.includes("sâu")
-        ? "status-flood"
-        : r.flood.includes("nhẹ")
-        ? "status-warning"
-        : "status-safe";
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`;
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r["Tỉnh/TP"]}</td>
-      <td>${r["Xã/Phường"]}</td>
-      <td>${r["Chức vụ"]}</td>
-      <td>${r["Họ và tên"]}</td>
-      <td>${r["SĐT"]}</td>
-      <td>${r["Trước sáp nhập"]}</td>
-      <td>${r["Huyện - Tỉnh cũ"]}</td>
-      <td>${r["Đặc điểm địa hình"]}</td>
-      <td>${r.rain}</td>
-      <td class="${cls}">${r.flood}</td>
-    `;
-    dataBody.appendChild(tr);
-  });
+    const res = await fetch(url);
+    const js = await res.json();
+
+    weatherCache[key] = js;
+    return js;
 }
 
-function searchData() {
-  const kw = searchInput.value.trim().toLowerCase();
-  if (!kw) return renderData(globalData);
+// ==========================================
+// SEARCH
+// ==========================================
+document.getElementById("searchInput").addEventListener("input", function () {
+    const text = this.value.toLowerCase();
 
-  const filtered = globalData.filter(r =>
-    Object.values(r).some(v => (v + "").toLowerCase().includes(kw))
-  );
+    const filtered = rawData.filter(r =>
+        r.tinh.toLowerCase().includes(text) ||
+        r.huyen.toLowerCase().includes(text) ||
+        r.xa.toLowerCase().includes(text) ||
+        r.thon.toLowerCase().includes(text) ||
+        r.lienhe.toLowerCase().includes(text) ||
+        r.phone.includes(text)
+    );
 
-  renderData(filtered);
-}
-
-searchBtn.onclick = searchData;
-searchInput.addEventListener("keypress", e => {
-  if (e.key === "Enter") searchData();
+    renderTable(filtered);
 });
 
-fetchData();
-setInterval(fetchData, 900000);
+// ==========================================
+// INIT
+// ==========================================
+loadSheet();
