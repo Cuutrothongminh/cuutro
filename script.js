@@ -1,7 +1,7 @@
 const SHEET_URL="https://docs.google.com/spreadsheets/d/12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU/gviz/tq?tqx=out:json&gid=325047141";
 const AUTO_INTERVAL=15*60*1000;
 
-let dataRows=[],currentPage=1,pageSize=50,map,markers={};
+let dataRows=[], currentPage=1, pageSize=50, map, markers={};
 
 const dom={
   dataBody:document.getElementById("dataBody"),
@@ -19,7 +19,7 @@ const dom={
 };
 
 // Initialize Leaflet map
-map = L.map('map').setView([16.0, 107.5], 6); // trung tâm Việt Nam
+map = L.map('map').setView([16.0, 107.5], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
@@ -27,20 +27,20 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 async function fetchSheet(){
   dom.updateStatus.textContent="Đang tải dữ liệu...";
   try{
-    const res=await fetch(SHEET_URL);
-    const text=await res.text();
-    const json=JSON.parse(text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s)[1]);
-    dataRows=json.table.rows.map(r=>{
-      const obj={};
-      json.table.cols.forEach((c,i)=>obj[c.label]=r.c[i]?.v||"");
+    const res = await fetch(SHEET_URL);
+    const text = await res.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s)[1]);
+    dataRows = json.table.rows.map(r=>{
+      const obj = {};
+      json.table.cols.forEach((c,i)=>obj[c.label] = r.c[i]?.v || "");
       return obj;
     });
-    dom.updateStatus.textContent="Đã tải "+dataRows.length+" hàng";
+    dom.updateStatus.textContent = "Đã tải "+dataRows.length+" hàng";
     renderTable();
     renderMap();
   }catch(e){
     console.error(e);
-    dom.updateStatus.textContent="Lỗi tải dữ liệu!";
+    dom.updateStatus.textContent = "Lỗi tải dữ liệu!";
   }
 }
 
@@ -49,28 +49,28 @@ function renderTable(){
   let rows=[...dataRows];
 
   // filter
-  const q=dom.searchInput.value.toLowerCase();
-  if(q) rows=rows.filter(r=>Object.values(r).some(v=>v.toString().toLowerCase().includes(q)));
+  const q = dom.searchInput.value.toLowerCase();
+  if(q) rows = rows.filter(r=>Object.values(r).some(v=>v.toString().toLowerCase().includes(q)));
 
   // sort
-  const sort=dom.sortSelect.value;
-  if(sort==="rain_desc") rows.sort((a,b)=>parseFloat(b["Lượng mưa (mm/1h)"]||0)-parseFloat(a["Lượng mưa (mm/1h)"]||0));
-  else if(sort==="rain_asc") rows.sort((a,b)=>parseFloat(a["Lượng mưa (mm/1h)"]||0)-parseFloat(b["Lượng mưa (mm/1h)"]||0));
+  const sort = dom.sortSelect.value;
+  if(sort==="rain_desc") rows.sort((a,b)=>parseFloat(b["Lượng mưa (mm/1h)"]||0) - parseFloat(a["Lượng mưa (mm/1h)"]||0));
+  else if(sort==="rain_asc") rows.sort((a,b)=>parseFloat(a["Lượng mưa (mm/1h)"]||0) - parseFloat(b["Lượng mưa (mm/1h)"]||0));
   else rows.sort((a,b)=>a["Tỉnh/TP"].localeCompare(b["Tỉnh/TP"]));
 
-  pageSize=parseInt(dom.pageSizeSelect.value||50);
-  const totalPage=Math.max(1,Math.ceil(rows.length/pageSize));
-  if(currentPage>totalPage) currentPage=totalPage;
-  dom.currentPageEl.textContent=currentPage;
-  dom.totalPageEl.textContent=totalPage;
-  dom.resultCountEl.textContent=rows.length;
+  pageSize = parseInt(dom.pageSizeSelect.value||50);
+  const totalPage = Math.max(1, Math.ceil(rows.length/pageSize));
+  if(currentPage>totalPage) currentPage = totalPage;
+  dom.currentPageEl.textContent = currentPage;
+  dom.totalPageEl.textContent = totalPage;
+  dom.resultCountEl.textContent = rows.length;
 
-  const pageRows=rows.slice((currentPage-1)*pageSize,(currentPage-1)*pageSize+pageSize);
+  const pageRows = rows.slice((currentPage-1)*pageSize, (currentPage-1)*pageSize+pageSize);
 
   pageRows.forEach(r=>{
-    const rain=parseFloat(r["Lượng mưa (mm/1h)"]||0);
-    const tr=document.createElement("tr");
-    tr.className=rain<5?"row-green":rain<20?"row-yellow":rain<50?"row-orange":"row-red";
+    const rain = parseFloat(r["Lượng mưa (mm/1h)"]||0);
+    const tr = document.createElement("tr");
+    tr.className = rain<5 ? "row-green" : rain<20 ? "row-yellow" : rain<50 ? "row-orange" : "row-red";
     tr.innerHTML=`
       <td>${r["Tỉnh/TP"]}</td>
       <td>${r["Huyện - Tỉnh cũ"]}</td>
@@ -86,25 +86,23 @@ function renderTable(){
   });
 }
 
-// Render markers on map
 function renderMap(){
-  // clear existing markers
-  for(let key in markers){
-    map.removeLayer(markers[key]);
-  }
-  markers={};
+  // remove existing markers
+  for(let key in markers) map.removeLayer(markers[key]);
+  markers = {};
 
+  const bounds = [];
   dataRows.forEach(r=>{
-    const lat=parseFloat(r["Lat"]);
-    const lng=parseFloat(r["Lng"]);
-    if(!isNaN(lat)&&!isNaN(lng)){
-      const rain=parseFloat(r["Lượng mưa (mm/1h)"]||0);
-      let color="green";
-      if(rain>=5&&rain<20) color="yellow";
-      else if(rain>=20&&rain<50) color="orange";
+    const lat = parseFloat(r["Lat"]);
+    const lng = parseFloat(r["Lng"]);
+    if(!isNaN(lat) && !isNaN(lng)){
+      const rain = parseFloat(r["Lượng mưa (mm/1h)"]||0);
+      let color = "green";
+      if(rain>=5 && rain<20) color="yellow";
+      else if(rain>=20 && rain<50) color="orange";
       else if(rain>=50) color="red";
 
-      const marker=L.circleMarker([lat,lng],{
+      const marker = L.circleMarker([lat,lng],{
         radius: 8,
         fillColor: color,
         color: "#000",
@@ -120,12 +118,15 @@ function renderMap(){
         ${r.Trạng_thái||"Bình thường"}
       `);
 
-      markers[`${lat}_${lng}`]=marker;
+      markers[`${lat}_${lng}`] = marker;
+      bounds.push([lat,lng]);
     }
   });
+
+  if(bounds.length>0) map.fitBounds(bounds, {padding:[50,50]});
 }
 
-// Events
+// Event listeners
 dom.searchBtn.addEventListener("click",()=>{ currentPage=1; renderTable(); });
 dom.searchInput.addEventListener("input",()=>{ currentPage=1; renderTable(); });
 dom.prevPageBtn.addEventListener("click",()=>{ if(currentPage>1){currentPage--;renderTable();} });
@@ -135,4 +136,4 @@ dom.sortSelect.addEventListener("change",()=>{ currentPage=1; renderTable(); });
 dom.refreshBtn.addEventListener("click",fetchSheet);
 
 fetchSheet();
-setInterval(fetchSheet,AUTO_INTERVAL);
+setInterval(fetchSheet, AUTO_INTERVAL);
