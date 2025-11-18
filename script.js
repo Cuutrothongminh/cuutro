@@ -1,106 +1,104 @@
-// Thay SHEET_ID và GID bằng sheet của bạn
-const SHEET_ID = "12Ne9OjotFAmM9zbG9oOZ5KdERO0Y0nKWWlT_GVHtFdU";
-const GID = "325047141";
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
+if (rain > 50) status = "Ngập nặng";
+    else if (rain > 30) status = "Ngập sâu";
+    else if (rain > 10) status = "Ngập nhẹ";
+    else status = "Bình thường";
 
-const AUTO_INTERVAL = 15*60*1000;
-
-let dataRows = [], currentPage = 1, pageSize = 50;
-
-const dom = {
-  dataBody: document.getElementById("dataBody"),
-  updateStatus: document.getElementById("updateStatus"),
-  searchInput: document.getElementById("searchInput"),
-  searchBtn: document.getElementById("searchBtn"),
-  pageSizeSelect: document.getElementById("pageSize"),
-  prevPageBtn: document.getElementById("prevPage"),
-  nextPageBtn: document.getElementById("nextPage"),
-  currentPageEl: document.getElementById("currentPage"),
-  totalPageEl: document.getElementById("totalPage"),
-  resultCountEl: document.getElementById("resultCount"),
-  sortSelect: document.getElementById("sortSelect"),
-  refreshBtn: document.getElementById("refreshBtn")
-};
-
-// Khởi tạo bản đồ (không marker)
-const map = L.map('map').setView([16,107.5], 6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-async function fetchSheet() {
-  dom.updateStatus.textContent = "Đang tải dữ liệu...";
-  try {
-    const res = await fetch(SHEET_URL);
-    const text = await res.text();
-    const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
-    if(!match) throw new Error("Response không đúng định dạng JSON");
-    const json = JSON.parse(match[1]);
-    dataRows = json.table.rows.map(r=>{
-      const obj = {};
-      json.table.cols.forEach((c,i)=>obj[c.label] = r.c[i]?.v || "");
-      return obj;
-    });
-    dom.updateStatus.textContent = `Đã tải ${dataRows.length} hàng`;
-    currentPage = 1;
-    renderTable();
-  } catch(e){
-    console.error(e);
-    dom.updateStatus.textContent = "Lỗi tải dữ liệu!";
+    weatherCache[key] = { rain, status };
+    localStorage.setItem("weatherCache", JSON.stringify(weatherCache));
+    return { rain, status };
+  } catch (err) {
+    console.error("Weather fetch error:", err);
+    return { rain: 0, status: "Bình thường" };
   }
 }
 
-function renderTable(){
-  dom.dataBody.innerHTML = "";
-  let rows = [...dataRows];
+// --- Cập nhật trạng thái mưa/ngập ---
+async function updateWeatherStatus() {
+  statusDiv.textContent = "🕓 Đang tải dữ liệu thời tiết...";
 
-  // filter
-  const q = dom.searchInput.value.toLowerCase();
-  if(q) rows = rows.filter(r=>Object.values(r).some(v=>v.toString().toLowerCase().includes(q)));
+  const uniqueCommunes = {};
+  globalData.forEach(r => {
+    const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
+    if (!uniqueCommunes[key]) uniqueCommunes[key] = r;
+  });
 
-  // sort
-  const sort = dom.sortSelect.value;
-  if(sort==="rain_desc") rows.sort((a,b)=>parseFloat(b["Lượng mưa (mm/1h)"]||0)-parseFloat(a["Lượng mưa (mm/1h)"]||0));
-  else if(sort==="rain_asc") rows.sort((a,b)=>parseFloat(a["Lượng mưa (mm/1h)"]||0)-parseFloat(b["Lượng mưa (mm/1h)"]||0));
-  else rows.sort((a,b)=>(a["Tỉnh/TP"]||"").localeCompare(b["Tỉnh/TP"]||""));
+  const promises = Object.values(uniqueCommunes).map(async r => {
+    const geo = await getLatLon(r["Tỉnh/TP"], r["Xã/Phường"]);
+    if (geo) {
+      const result = await getWeatherWithCache(r["Tỉnh/TP"], r["Xã/Phường"], geo.lat, geo.lon);
+      r["Rain"] = result.rain;
+      r["Trạng thái ngập"] = result.status;
+    } else {
+      r["Rain"] = 0;
+      r["Trạng thái ngập"] = "Bình thường";
+    }
+  });
 
-  pageSize = parseInt(dom.pageSizeSelect.value||50);
-  const totalPage = Math.max(1, Math.ceil(rows.length/pageSize));
-  if(currentPage>totalPage) currentPage = totalPage;
-  dom.currentPageEl.textContent = currentPage;
-  dom.totalPageEl.textContent = totalPage;
-  dom.resultCountEl.textContent = rows.length;
+  await Promise.all(promises);
 
-  const pageRows = rows.slice((currentPage-1)*pageSize, (currentPage-1)*pageSize+pageSize);
+  globalData.forEach(r => {
+    const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
+    const uniqueData = uniqueCommunes[key];
+    r["Rain"] = uniqueData["Rain"];
+    r["Trạng thái ngập"] = uniqueData["Trạng thái ngập"];
+  });
 
-  pageRows.forEach(r=>{
-    const rain = parseFloat(r["Lượng mưa (mm/1h)"]||0);
+  renderData(globalData);
+  statusDiv.textContent = `🕓 Cập nhật lần cuối: ${new Date().toLocaleString("vi-VN")}`;
+}
+
+// --- Render dữ liệu ---
+function renderData(data) {
+  dataBody.innerHTML = "";
+  if (!data.length) {
+    dataBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">Không có dữ liệu</td></tr>`;
+    return;
+  }
+
+  data.forEach(r => {
+    const statusClass =
+      r["Trạng thái ngập"] === "Ngập nặng" || r["Trạng thái ngập"] === "Ngập sâu"
+        ? "status-flood"
+        : r["Trạng thái ngập"] === "Ngập nhẹ"
+        ? "status-warning"
+        : "status-safe";
+
     const tr = document.createElement("tr");
-    tr.className = rain<5?"row-green":rain<20?"row-yellow":rain<50?"row-orange":"row-red";
-    tr.innerHTML=`
+    tr.innerHTML = `
       <td>${r["Tỉnh/TP"]}</td>
-      <td>${r["Huyện - Tỉnh cũ"]}</td>
       <td>${r["Xã/Phường"]}</td>
-      <td>${r["Chức vụ"]}</td>
       <td>${r["Họ và tên"]}</td>
-      <td><a href="tel:${r["Số điện thoại"]}">${r["Số điện thoại"]}</a></td>
+      <td>${r["Chức vụ"]}</td>
+      <td>${r["SĐT"]}</td>
+      <td>${r["Trước sáp nhập"]}</td>
+      <td>${r["Huyện - Tỉnh cũ"]}</td>
       <td>${r["Đặc điểm địa hình"]}</td>
-      <td>${rain.toFixed(1)}</td>
-      <td>${r["Trạng_thái"]||"Bình thường"}</td>
-      <td><a class="btn btn-sm btn-success" href="tel:${r["Số điện thoại"]}">Gọi</a></td>
+      <td>${r["Rain"]}</td>
+      <td class="${statusClass}">${r["Trạng thái ngập"]}</td>
     `;
-    dom.dataBody.appendChild(tr);
+    dataBody.appendChild(tr);
   });
 }
 
-// Event listeners
-dom.searchBtn.addEventListener("click",()=>{ currentPage=1; renderTable(); });
-dom.searchInput.addEventListener("input",()=>{ currentPage=1; renderTable(); });
-dom.prevPageBtn.addEventListener("click",()=>{ if(currentPage>1){currentPage--;renderTable();} });
-dom.nextPageBtn.addEventListener("click",()=>{ currentPage++; renderTable(); });
-dom.pageSizeSelect.addEventListener("change",()=>{ currentPage=1; renderTable(); });
-dom.sortSelect.addEventListener("change",()=>{ currentPage=1; renderTable(); });
-dom.refreshBtn.addEventListener("click",fetchSheet);
+// --- Tìm kiếm nhanh ---
+function searchData() {
+  const keyword = searchInput.value.trim().toLowerCase();
+  if (!keyword) {
+    renderData(globalData);
+    return;
+  }
+  const filtered = globalData.filter(
+    r => r["Tỉnh/TP"].toLowerCase() === keyword || r["Xã/Phường"].toLowerCase() === keyword
+  );
+  renderData(filtered);
+}
+searchBtn.onclick = searchData;
+searchInput.addEventListener("keypress", e => {
+  if (e.key === "Enter") searchData();
+});
 
-fetchSheet();
-setInterval(fetchSheet,AUTO_INTERVAL);
+// --- Lần đầu tải ---
+fetchData();
+
+// --- Cập nhật tự động mỗi 15 phút ---
+setInterval(fetchData, 15 * 60 * 1000);
