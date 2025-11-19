@@ -36,6 +36,7 @@ async function fetchData() {
       .map(r => r.c?.map(c => (c && c.v ? c.v.toString().trim() : "")))
       .filter(r => r && r.some(x => x !== "") && r[0] !== "Tỉnh/TP");
 
+    // Thêm cột Rain
     const headers = [
       "Tỉnh/TP",
       "Xã/Phường",
@@ -45,6 +46,7 @@ async function fetchData() {
       "Trước sáp nhập",
       "Huyện - Tỉnh cũ",
       "Đặc điểm địa hình",
+      "Rain",
       "Trạng thái ngập"
     ];
 
@@ -134,104 +136,4 @@ async function updateWeatherStatus() {
   const uniqueCommunes = {};
   globalData.forEach(r => {
     const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
-    if (!uniqueCommunes[key]) uniqueCommunes[key] = r;
-  });
-
-  const promises = Object.values(uniqueCommunes).map(async r => {
-    const geo = await getLatLon(r["Tỉnh/TP"], r["Xã/Phường"]);
-    if (geo) {
-      const result = await getWeatherWithCache(
-        r["Tỉnh/TP"],
-        r["Xã/Phường"],
-        geo.lat,
-        geo.lon
-      );
-      r["Rain"] = result.rain;
-      r["Trạng thái ngập"] = result.status;
-    } else {
-      r["Rain"] = 0;
-      r["Trạng thái ngập"] = "Bình thường";
-    }
-  });
-
-  await Promise.all(promises);
-
-  globalData.forEach(r => {
-    const key = `${r["Tỉnh/TP"]}-${r["Xã/Phường"]}`;
-    const update = uniqueCommunes[key];
-    r["Rain"] = update["Rain"];
-    r["Trạng thái ngập"] = update["Trạng thái ngập"];
-  });
-
-  renderData(globalData);
-  statusDiv.textContent =
-    "🕓 Cập nhật lần cuối: " +
-    new Date().toLocaleString("vi-VN");
-}
-
-
-// =========================
-// RENDER TABLE
-// =========================
-function renderData(data) {
-  dataBody.innerHTML = "";
-
-  if (!data.length) {
-    dataBody.innerHTML =
-      `<tr><td colspan="10" style="text-align:center;">Không có dữ liệu</td></tr>`;
-    return;
-  }
-
-  data.forEach(r => {
-    const cls =
-      r["Trạng thái ngập"] === "Ngập nặng" || r["Trạng thái ngập"] === "Ngập sâu"
-        ? "status-flood"
-        : r["Trạng thái ngập"] === "Ngập nhẹ"
-        ? "status-warning"
-        : "status-safe";
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r["Tỉnh/TP"]}</td>
-      <td>${r["Xã/Phường"]}</td>
-      <td>${r["Họ và tên"]}</td>
-      <td>${r["Chức vụ"]}</td>
-      <td>${r["SĐT"]}</td>
-      <td>${r["Trước sáp nhập"]}</td>
-      <td>${r["Huyện - Tỉnh cũ"]}</td>
-      <td>${r["Đặc điểm địa hình"]}</td>
-      <td>${r["Rain"]}</td>
-      <td class="${cls}">${r["Trạng thái ngập"]}</td>
-    `;
-    dataBody.appendChild(tr);
-  });
-}
-
-
-// =========================
-// SEARCH
-// =========================
-function searchData() {
-  const keyword = searchInput.value.trim().toLowerCase();
-  if (!keyword) return renderData(globalData);
-
-  const filtered = globalData.filter(r =>
-    r["Tỉnh/TP"].toLowerCase().includes(keyword) ||
-    r["Xã/Phường"].toLowerCase().includes(keyword)
-  );
-
-  renderData(filtered);
-}
-
-searchBtn.onclick = searchData;
-
-searchInput.addEventListener("keypress", e => {
-  if (e.key === "Enter") searchData();
-});
-
-
-// =========================
-// INIT
-// =========================
-fetchData();
-setInterval(fetchData, 15 * 60 * 1000);
+    if (!unique
