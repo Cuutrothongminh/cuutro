@@ -1,66 +1,63 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Danh bạ chính quyền — Thời tiết & Ngập lụt</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danh bạ chính quyền</title>
 
-  <link rel="stylesheet" href="style.css" />
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-sA+e2k0rFQY6m9w2b7qj5d2s7Qqv1p1fKfX0xg9g3yk=" crossorigin=""/>
-
-  <!-- MarkerCluster CSS (optional but helpful if many markers) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
-    /* small inline tweaks (most in style.css) */
-    #map { height: 420px; margin-top: 12px; border-radius:8px; }
-    .spinner { display:inline-block; width:18px; height:18px; border:3px solid rgba(0,0,0,0.1); border-top-color:#007bff; border-radius:50%; animation:spin .9s linear infinite; vertical-align:middle; margin-right:6px; }
-    @keyframes spin { to { transform:rotate(360deg); } }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    table, th, td { border: 1px solid #ccc; }
+    th { background: #f2f2f2; padding: 8px; text-align: center; }
+    td { padding: 6px; }
+
+    .row-red { background: #ffb3b3; font-weight: bold; }
+    .row-yellow { background: #fff4b3; font-weight: bold; }
+    .row-green { background: #d9ffd9; }
+
+    #map { height: 380px; margin-top: 20px; }
+
+    #searchBox { margin-bottom: 15px; }
   </style>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-  <h2>📌 DANH BẠ CHÍNH QUYỀN — THEO DÕI THỜI TIẾT & NGẬP LỤT</h2>
 
-  <div id="update-status" style="margin-bottom:10px;font-weight:bold;">
-    <span class="spinner"></span> Đang tải dữ liệu...
-  </div>
+<h2>📌 DANH BẠ CHÍNH QUYỀN — THEO DÕI THỜI TIẾT & NGẬP LỤT</h2>
 
-  <div id="searchBox" style="margin-bottom:8px;">
-    <input id="searchInput" type="text" placeholder="Nhập tên tỉnh hoặc xã..." style="padding:6px;width:280px;">
-    <button id="searchBtn" style="padding:6px 10px;">Tìm kiếm</button>
-    <button id="resetBtn" style="padding:6px 10px;margin-left:6px;">Hiển thị tất cả</button>
-    <span class="small-muted" id="countInfo" style="margin-left:12px;"></span>
-  </div>
+<div id="update-status" style="margin-bottom: 10px; font-weight: bold;">
+  Đang tải dữ liệu...
+</div>
 
-  <div id="map"></div>
+<div id="searchBox">
+  <input id="searchInput" type="text" placeholder="Nhập tên tỉnh hoặc xã..." style="padding:5px;width:250px;">
+  <button id="searchBtn" style="padding:6px 10px;">Tìm kiếm</button>
+</div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Tỉnh/TP</th>
-        <th>Xã/Phường</th>
-        <th>Họ và tên</th>
-        <th>Chức vụ</th>
-        <th>SĐT</th>
-        <th>Đặc điểm địa hình</th>
-        <th>Mưa (mm)</th>
-        <th>Trạng thái ngập</th>
-      </tr>
-    </thead>
-    <tbody id="dataBody"></tbody>
-  </table>
+<div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j+0a3s7k0G5rQZ0FhJk6GvX1tA7R5vQm6Zf0gEc=" crossorigin=""></script>
+<table>
+  <thead>
+    <tr>
+      <th>Tỉnh/TP</th>
+      <th>Xã/Phường</th>
+      <th>Họ và tên</th>
+      <th>Chức vụ</th>
+      <th>SĐT</th>
+      <th>Trước sáp nhập</th>
+      <th>Huyện - Tỉnh cũ</th>
+      <th>Địa hình</th>
+      <th>Mưa (mm)</th>
+      <th>Trạng thái ngập</th>
+    </tr>
+  </thead>
+  <tbody id="dataBody"></tbody>
+</table>
 
-  <!-- MarkerCluster (optional) -->
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-  <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
