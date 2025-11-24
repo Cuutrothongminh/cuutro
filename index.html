@@ -1,50 +1,25 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Danh bạ chính quyền</title>
 
+  <link rel="stylesheet" href="style.css" />
+
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-    }
-    table, th, td {
-      border: 1px solid #ccc;
-    }
-    th {
-      background: #f2f2f2;
-      padding: 8px;
-      text-align: center;
-    }
-    td {
-      padding: 6px;
-    }
-    .status-flood {
-      background: #ff6b6b; color: white; font-weight: bold;
-    }
-    .status-warning {
-      background: #f7d774; color: black; font-weight: bold;
-    }
-    .status-safe {
-      background: #d4f7d4; color: black;
-    }
-    #searchBox {
-      margin-bottom: 15px;
-    }
+    #searchBox { margin-bottom: 15px; }
+    th { text-align: center; }
+    .status-flood { background:#ff6b6b;color:#fff;font-weight:bold; }
+    .status-warning { background:#f7d774;color:#000;font-weight:bold; }
+    .status-safe { background:#d4f7d4;color:#000;font-weight:bold; }
   </style>
 </head>
 <body>
 
 <h2>📌 DANH BẠ CHÍNH QUYỀN — THEO DÕI THỜI TIẾT & NGẬP LỤT</h2>
 
-<div id="update-status" style="margin-bottom: 10px; font-weight: bold;">
+<div id="update-status" style="margin-bottom:10px;font-weight:bold;">
   Đang tải dữ liệu...
 </div>
 
