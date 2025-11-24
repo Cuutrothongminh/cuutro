@@ -12,16 +12,20 @@ h2 { color: #007bff; margin-bottom: 6px; }
 select, input { padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 6px; }
 
 table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.08); margin-top:10px; }
-th, td { border: 1px solid #e6e6e6; padding: 8px; text-align: left; font-size: 14px; }
+th, td { border: 1px solid #e6e6e6; padding: 8px; text-align: left; font-size: 14px; vertical-align: middle; }
 th { background-color: #007bff; color: white; position: sticky; top: 0; z-index: 2; }
 tr:nth-child(even) { background-color: #fbfbfb; }
 
 /* status colors */
-.status-flood { background: #ffcccc !important; }
-.status-warning { background: #fff4db !important; }
+.status-flood { background: #ffd6d6 !important; }
+.status-warning { background: #fff6dc !important; }
 .status-safe { background: #e9ffec !important; }
 .status-unknown { background: #f2f2f2 !important; }
 
+/* highlighted row when clicking */
+tr.highlighted { outline: 3px solid #ff9800; box-shadow: inset 0 0 0 2px rgba(255,152,0,0.08); background: #fff4e6 !important; }
+
+/* call button */
 .call-btn { background-color: #28a745; color: white; padding: 5px 10px; border: none; border-radius: 6px; cursor: pointer; }
 .call-btn:hover { background-color: #218838; }
 
