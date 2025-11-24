@@ -5,52 +5,36 @@ body {
   margin: 20px;
 }
 
-h1 {
-  color: #007bff;
-}
+h2 { color: #007bff; margin-bottom: 6px; }
 
-.filters {
-  margin: 15px 0;
-}
+#searchBox { margin-bottom: 10px; }
 
-select, input {
-  padding: 8px;
-  margin-right: 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
+select, input { padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 6px; }
 
-table {
-  border-collapse: collapse;
-  width: 100%;
-  background: white;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
+table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.08); margin-top:10px; }
+th, td { border: 1px solid #e6e6e6; padding: 8px; text-align: left; font-size: 14px; }
+th { background-color: #007bff; color: white; position: sticky; top: 0; z-index: 2; }
+tr:nth-child(even) { background-color: #fbfbfb; }
 
-th, td {
-  border: 1px solid #ddd;
-  padding: 10px;
-  text-align: left;
-}
+/* status colors */
+.status-flood { background: #ffcccc !important; }
+.status-warning { background: #fff4db !important; }
+.status-safe { background: #e9ffec !important; }
+.status-unknown { background: #f2f2f2 !important; }
 
-th {
-  background-color: #007bff;
-  color: white;
-}
+.call-btn { background-color: #28a745; color: white; padding: 5px 10px; border: none; border-radius: 6px; cursor: pointer; }
+.call-btn:hover { background-color: #218838; }
 
-tr:nth-child(even) {
-  background-color: #f2f2f2;
-}
+.small-muted { color:#666; font-size:0.95rem; }
 
-.call-btn {
-  background-color: #28a745;
-  color: white;
-  padding: 5px 10px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
+/* spinner */
+.spinner { display:inline-block; width:18px; height:18px; border:3px solid rgba(0,0,0,0.08); border-top-color:#007bff; border-radius:50%; animation:spin .9s linear infinite; vertical-align:middle; margin-right:6px; }
+@keyframes spin { to { transform:rotate(360deg); } }
 
-.call-btn:hover {
-  background-color: #218838;
+/* responsive */
+@media (max-width: 900px) {
+  table, thead, tbody, th, td, tr { display:block; }
+  th { position:relative; }
+  tr { margin-bottom: 10px; }
+  td { border: none; padding: 6px 0; }
 }
